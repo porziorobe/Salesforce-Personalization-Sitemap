@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Personalization Sitemap Generator</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="app-header" role="banner">
+        <div class="header-inner">
+          <div class="brand-mark" aria-hidden="true">
+            <span class="brand-cloud"></span>
+          </div>
+          <div class="header-titles">
+            <h1 class="app-title">Personalization Sitemap Generator</h1>
+            <p class="app-subtitle">
+              Build Interaction Studio sitemap snippets from a live page and target markup.
+            </p>
+          </div>
+        </div>
+      </header>
+
+      <main class="app-main" role="main">
+        <section class="panel panel-form" aria-labelledby="form-heading">
+          <h2 id="form-heading" class="panel-heading">Inputs</h2>
+          <form id="generate-form" class="form" novalidate>
+            <div class="field">
+              <label class="label" for="page-url">Customer Website URL</label>
+              <input
+                id="page-url"
+                name="pageUrl"
+                type="url"
+                class="input"
+                placeholder="https://www.example.com/"
+                autocomplete="url"
+                required
+              />
+            </div>
+            <div class="field">
+              <label class="label" for="target-html">Target Element HTML</label>
+              <textarea
+                id="target-html"
+                name="targetHtml"
+                class="textarea textarea-tall"
+                rows="8"
+                placeholder="Paste the outer HTML of the hero or zone to personalize."
+                required
+              ></textarea>
+            </div>
+            <div class="field">
+              <label class="label" for="target-selector">CSS Selector</label>
+              <input
+                id="target-selector"
+                name="targetSelector"
+                type="text"
+                class="input"
+                placeholder=".hero-banner, #main-hero, etc."
+                required
+              />
+            </div>
+            <div class="actions">
+              <button type="submit" id="generate-btn" class="btn btn-primary">
+                <span class="btn-label">Generate Sitemap</span>
+                <span class="btn-loading" hidden aria-hidden="true">Generating…</span>
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel panel-output" aria-labelledby="output-heading">
+          <h2 id="output-heading" class="panel-heading">Generated sitemap</h2>
+          <div
+            id="error-banner"
+            class="banner banner-error"
+            role="alert"
+            hidden
+          ></div>
+          <label class="label visually-hidden" for="output">Sitemap JavaScript output</label>
+          <textarea
+            id="output"
+            class="textarea output-area"
+            readonly
+            rows="18"
+            placeholder="Generated JavaScript will appear here."
+          ></textarea>
+          <div class="actions actions-output">
+            <button type="button" id="copy-btn" class="btn btn-neutral" disabled>
+              Copy to Clipboard
+            </button>
+          </div>
+        </section>
+      </main>
+
+      <footer class="app-footer" role="contentinfo">
+        <p>For Salesforce sales engineers. Uses Claude to format output; verify before production use.</p>
+      </footer>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>
