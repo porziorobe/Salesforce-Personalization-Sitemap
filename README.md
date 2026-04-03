@@ -1,22 +1,27 @@
 # Personalization Sitemap Generator
 
-Node/Express app that fetches a customer page, extracts layout hints with Cheerio, and calls the Claude API to produce a Salesforce Personalization (Interaction Studio) sitemap JavaScript snippet.
+A deterministic Node/Express web app for Salesforce sales engineers. It detects a likely homepage hero element from a live customer site and generates a Salesforce Personalization sitemap string via fixed string templating.
+
+## Stack
+
+- Node + Express backend
+- Vanilla HTML/CSS/JS frontend
+- Cheerio for HTML parsing
+- No LLM or external AI API
 
 ## Environment variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ANTHROPIC_API_KEY` | **Yes** | API key for the Anthropic Claude API. Never commit this value. |
-| `PORT` | On Heroku | HTTP port. Heroku sets this automatically; locally it defaults to `3000` if unset. |
-| `NODE_ENV` | Optional | Set to `production` on Heroku for typical production behavior. |
+Only one variable is required for local development:
 
-Copy `.env.example` to `.env` for local development and add your real key:
+- `PORT` (optional locally, defaults to `3000`)
+
+Use `.env.example` as a starter:
 
 ```bash
 cp .env.example .env
 ```
 
-## Local development
+## Run locally
 
 ```bash
 cd sitemap-generator
@@ -24,22 +29,24 @@ npm install
 npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
-## Deploy to Heroku from GitHub
-
-1. Push this repository to GitHub (or ensure the `sitemap-generator` folder is in a repo you connect to Heroku).
-2. In the [Heroku Dashboard](https://dashboard.heroku.com/), create a new app and choose **Deploy** → **GitHub** → select the repository.
-3. If the Node app lives in a subfolder of the repo, set **Settings** → **Buildpacks** and use a [subdirectory buildpack](https://elements.heroku.com/buildpacks/timanovsky/subdir-heroku-buildpack) with config var `PROJECT_PATH=sitemap-generator`, **or** deploy only the `sitemap-generator` directory as its own repository.
-4. **Settings** → **Config Vars**: add `ANTHROPIC_API_KEY` (and optionally `NODE_ENV` = `production`).
-5. Enable **Automatic Deploys** from your chosen branch if desired.
-
-The `Procfile` runs `web: node index.js`, and `package.json` defines `"start": "node index.js"` for Heroku’s Node buildpack.
+Then open [http://localhost:3000](http://localhost:3000).
 
 ## API
 
-- **POST** `/generate`  
-  JSON body: `{ "pageUrl": "https://...", "targetHtml": "...", "targetSelector": "..." }`  
-  Response: `{ "sitemap": "..." }` or `{ "error": "..." }` with an appropriate HTTP status.
+- `POST /detect`
+  - Request: `{ "pageUrl": "https://example.com" }`
+  - Response: `{ "targetSelector": "...", "targetHtml": "...", "pageUrl": "..." }`
 
-The server fetches `pageUrl`, parses HTML with Cheerio, builds a `PAGE_CONTEXT` payload (classes, linked CSS/JS, framework hints), and sends the fixed prompt template in `templates/claude-prompt.txt` to Claude.
+- `POST /generate`
+  - Request: `{ "pageUrl": "https://example.com", "targetHtml": "...", "targetSelector": "..." }`
+  - Response: `{ "sitemap": "..." }`
+
+## Heroku deployment via GitHub
+
+1. Push this app to GitHub.
+2. In Heroku, create a new app.
+3. Connect the GitHub repository in **Deploy**.
+4. Deploy the `main` branch (or enable auto deploy).
+5. Ensure the app runs with the included `Procfile` (`web: node index.js`).
+
+If this app lives in a subdirectory of a larger repo, either deploy this folder as its own repo or use a subdirectory buildpack and set `PROJECT_PATH=sitemap-generator`.

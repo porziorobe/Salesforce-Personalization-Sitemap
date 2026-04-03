@@ -2,123 +2,66 @@ const path = require('path');
 const fs = require('fs');
 const express = require('express');
 const cheerio = require('cheerio');
-const Anthropic = require('@anthropic-ai/sdk');
 
-if (process.env.NODE_ENV !== 'production') {
-  require('dotenv').config({ path: path.join(__dirname, '.env') });
-}
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
-const PROMPT_PATH = path.join(__dirname, 'templates', 'claude-prompt.txt');
-let promptTemplate = '';
-try {
-  promptTemplate = fs.readFileSync(PROMPT_PATH, 'utf8');
-} catch (e) {
-  console.error('Missing prompt template at', PROMPT_PATH);
-  process.exit(1);
-}
+const TEMPLATE_PATH = path.join(__dirname, 'templates', 'sitemap-template.txt');
+const SITEMAP_TEMPLATE = fs.readFileSync(TEMPLATE_PATH, 'utf8');
 
-function buildClaudePrompt({ pageUrl, targetHtml, targetSelector, pageContext }) {
-  return promptTemplate
-    .replace('{{pageContext}}', pageContext)
-    .replace('{{targetSelector}}', targetSelector)
-    .replace('{{targetHtml}}', targetHtml)
-    .replace('{{pageUrl}}', pageUrl);
-}
+const DEFAULT_TRANSFORMER_HTML = `
+            <style>
+                .sfdcep-banner {
+                    margin: 0px auto;
+                    width: 100%;
+                    min-height: 600px;
+                    display: flex;
+                    flex-flow: column wrap;
+                    justify-content: center;
+                    font-family: Arial, Helvetica, sans-serif;
+                }
+                .sfdcep-banner-header {
+                    font-size: 32px;
+                    padding-bottom: 40px;
+                    font-weight: 600;
+                    color: #DDDDDD;
+                    text-align: center;
+                }
+                .sfdcep-banner-subheader {
+                    font-size: 20px;
+                    font-weight: 400;
+                    color: #DDDDDD;
+                    text-align: center;
+                    padding-bottom: 40px;
+                }
+                .sfdcep-banner-cta {
+                    text-align: center;
+                }
+                .sfdcep-banner-cta a {
+                    padding: 10px 20px;
+                    display: inline-block;
+                    background-color: #097fb3;
+                    border-radius: 20px;
+                    color: #DDDDDD;
+                    text-decoration: none;
+                    font-weight: 400;
+                    font-size: 18px;
+                }
+            </style>
+            <div class="sfdcep-banner" style="background: url('{{subVar 'BackgroundImageUrl'}}') no-repeat center center;">
+                <div class="sfdcep-banner-header">{{subVar 'Header'}}</div>
+                <div class="sfdcep-banner-subheader">{{subVar 'Subheader'}}</div>
+                <div class="sfdcep-banner-cta">
+                    <a href="{{subVar 'CallToActionUrl'}}">{{subVar 'CallToActionText'}}</a>
+                </div>
+            </div>`;
 
-/** If the model wraps JavaScript in a markdown fence, strip it for copy-paste use. */
-function unwrapOptionalMarkdownFence(text) {
-  let t = text.trim();
-  if (!t.startsWith('```')) {
-    return t;
-  }
-  const firstLineBreak = t.indexOf('\n');
-  if (firstLineBreak === -1) {
-    return text.trim();
-  }
-  t = t.slice(firstLineBreak + 1);
-  const lastFence = t.lastIndexOf('```');
-  if (lastFence !== -1) {
-    t = t.slice(0, lastFence);
-  }
-  return t.trim();
-}
-
-function detectFrameworks(htmlLower, classes, scriptSrcs, linkHrefs) {
-  const hints = [];
-  const bundle = `${scriptSrcs.join(' ')} ${linkHrefs.join(' ')} ${htmlLower.slice(0, 50000)}`;
-
-  if (
-    /bootstrap(\.min)?\.(css|js)/i.test(bundle) ||
-    /\b(btn-primary|container-fluid|row|col-md|navbar-nav|modal-dialog)\b/.test(classes.join(' '))
-  ) {
-    hints.push('Bootstrap');
-  }
-  if (/tailwind/i.test(bundle) || /@tailwind|tailwindcss/i.test(bundle)) {
-    hints.push('Tailwind CSS');
-  }
-  if (/bulma/i.test(bundle) || /\bis-\w+\b/.test(classes.join(' '))) {
-    hints.push('Bulma (possible)');
-  }
-  if (/foundation/i.test(bundle)) {
-    hints.push('Foundation');
-  }
-  if (/materialize|mui\.com|material-ui/i.test(bundle)) {
-    hints.push('Material-style framework (possible)');
-  }
-  return [...new Set(hints)];
-}
-
-function extractPageContextFromHtml(html, resolvedUrl) {
-  const $ = cheerio.load(html);
-  const classSet = new Set();
-  $('[class]').each((_, el) => {
-    const c = $(el).attr('class');
-    if (c) {
-      c.split(/\s+/).forEach((token) => {
-        if (token) classSet.add(token);
-      });
-    }
-  });
-  const classes = [...classSet];
-  const scriptSrcs = $('script[src]')
-    .map((_, el) => $(el).attr('src'))
-    .get()
-    .filter(Boolean);
-  const linkHrefs = $('link[rel="stylesheet"], link[rel="preload"][as="style"]')
-    .map((_, el) => $(el).attr('href'))
-    .get()
-    .filter(Boolean);
-
-  const htmlLower = html.toLowerCase();
-  const frameworks = detectFrameworks(htmlLower, classes, scriptSrcs, linkHrefs);
-
-  const bodyClass = $('body').attr('class') || '';
-  const htmlClass = $('html').attr('class') || '';
-
-  return JSON.stringify(
-    {
-      resolvedUrl,
-      documentTitle: $('title').first().text().trim(),
-      htmlLang: $('html').attr('lang') || null,
-      htmlClass: htmlClass || null,
-      bodyClass: bodyClass || null,
-      frameworksDetected: frameworks,
-      classNameCount: classes.length,
-      classNameSample: classes.slice(0, 250),
-      stylesheetHrefs: linkHrefs.slice(0, 40),
-      scriptSrcsSample: scriptSrcs.slice(0, 40),
-      metaViewport: $('meta[name="viewport"]').attr('content') || null,
-    },
-    null,
-    2
-  );
-}
+const HERO_KEYWORDS = /(hero|banner|jumbotron|masthead|splash|jumbo)/i;
 
 async function fetchPageHtml(pageUrl) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25000);
   try {
-    const res = await fetch(pageUrl, {
+    const response = await fetch(pageUrl, {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
@@ -127,24 +70,139 @@ async function fetchPageHtml(pageUrl) {
         Accept: 'text/html,application/xhtml+xml',
       },
     });
-    clearTimeout(timeout);
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} ${res.statusText || ''}`.trim());
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} ${response.statusText || ''}`.trim());
     }
-    const contentType = res.headers.get('content-type') || '';
+
+    const contentType = response.headers.get('content-type') || '';
     if (!/text\/html|application\/xhtml/i.test(contentType) && !contentType.includes('text/plain')) {
       throw new Error(`Unexpected content-type: ${contentType || 'unknown'}`);
     }
-    const html = await res.text();
-    const finalUrl = res.url || pageUrl;
-    return { html, finalUrl };
-  } catch (err) {
-    clearTimeout(timeout);
-    if (err.name === 'AbortError') {
+
+    return { html: await response.text(), finalUrl: response.url || pageUrl };
+  } catch (error) {
+    if (error.name === 'AbortError') {
       throw new Error('Request timed out while fetching the page URL.');
     }
-    throw err;
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
+}
+
+function validatePageUrl(pageUrl) {
+  if (typeof pageUrl !== 'string' || !pageUrl.trim()) {
+    throw new Error('pageUrl is required.');
+  }
+  const parsedUrl = new URL(pageUrl.trim());
+  if (!/^https?:$/i.test(parsedUrl.protocol)) {
+    throw new Error('pageUrl must use http or https.');
+  }
+  return parsedUrl;
+}
+
+function toAbsoluteSelector(element) {
+  const parts = [];
+  let current = element;
+
+  while (current && current.tagName && current.tagName !== 'html') {
+    const parent = current.parent;
+    let index = 1;
+    if (parent && Array.isArray(parent.children)) {
+      const siblings = parent.children.filter((child) => child.type === 'tag' && child.tagName === current.tagName);
+      index = Math.max(1, siblings.indexOf(current) + 1);
+    }
+    parts.unshift(`${current.tagName}:nth-of-type(${index})`);
+    current = parent;
+  }
+
+  return parts.length ? `body > ${parts.join(' > ')}` : 'section';
+}
+
+function bestSelectorForElement($, element) {
+  const id = $(element).attr('id');
+  if (id && /^[-_a-zA-Z0-9]+$/.test(id)) {
+    return `#${id}`;
+  }
+
+  const classes = (($(element).attr('class') || '').split(/\s+/).filter(Boolean).slice(0, 3))
+    .filter((name) => /^[-_a-zA-Z0-9]+$/.test(name));
+
+  if (classes.length > 0) {
+    return `${element.tagName}.${classes.join('.')}`;
+  }
+
+  return toAbsoluteSelector(element);
+}
+
+function detectHeroElement($) {
+  const topCandidates = $('body').find('section, div').slice(0, 80).get();
+
+  const priorityOne = topCandidates.find((el) => /background(-image)?\s*:/i.test($(el).attr('style') || ''));
+  if (priorityOne) return priorityOne;
+
+  const priorityTwo = topCandidates.find((el) => HERO_KEYWORDS.test($(el).attr('class') || ''));
+  if (priorityTwo) return priorityTwo;
+
+  const priorityThree = topCandidates.find((el) => $(el).find('h1, h2').length > 0 && $(el).find('a').length > 0);
+  if (priorityThree) return priorityThree;
+
+  const firstSection = $('section').first().get(0);
+  if (firstSection) return firstSection;
+
+  return null;
+}
+
+function deriveCustomerName(pageUrl) {
+  const hostname = new URL(pageUrl).hostname.replace(/^www\./i, '');
+  const root = hostname.split('.')[0] || 'Customer';
+  const normalized = root.replace(/[^a-zA-Z0-9]+/g, ' ').trim();
+  if (!normalized) return 'Customer';
+  return normalized
+    .split(/\s+/)
+    .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1).toLowerCase())
+    .join('');
+}
+
+function sanitizeClasses(classNames) {
+  return classNames
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .filter((name) => /^[-_a-zA-Z0-9:]+$/.test(name));
+}
+
+function buildTransformerHtml(targetHtml) {
+  const loaded = cheerio.load(targetHtml, { decodeEntities: false });
+  const root = loaded.root().children().first();
+
+  if (!root || root.length === 0) {
+    return DEFAULT_TRANSFORMER_HTML;
+  }
+
+  const classes = sanitizeClasses((root.attr('class') || '').split(/\s+/));
+  const reusableClasses = classes.filter((name) => HERO_KEYWORDS.test(name));
+
+  if (reusableClasses.length === 0) {
+    return DEFAULT_TRANSFORMER_HTML;
+  }
+
+  const wrapperClasses = reusableClasses.join(' ');
+  return `
+            <div class="${wrapperClasses}" style="background-image: url('{{subVar 'BackgroundImageUrl'}}'); background-size: cover; background-position: center;">
+                <div class="${wrapperClasses}__header">{{subVar 'Header'}}</div>
+                <div class="${wrapperClasses}__subheader">{{subVar 'Subheader'}}</div>
+                <div class="${wrapperClasses}__cta">
+                    <a href="{{subVar 'CallToActionUrl'}}">{{subVar 'CallToActionText'}}</a>
+                </div>
+            </div>`;
+}
+
+function generateSitemap(customerName, transformerHtml, targetSelector) {
+  return SITEMAP_TEMPLATE
+    .replaceAll('[CustomerName]', customerName)
+    .replace('{{TRANSFORMER_HTML}}', transformerHtml)
+    .replace('TARGET_SELECTOR', targetSelector);
 }
 
 const app = express();
@@ -153,81 +211,49 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.post('/generate', async (req, res) => {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({
-      error: 'Server is not configured with ANTHROPIC_API_KEY.',
-    });
-  }
-
-  const { pageUrl, targetHtml, targetSelector } = req.body || {};
-
-  if (typeof pageUrl !== 'string' || !pageUrl.trim()) {
-    return res.status(400).json({ error: 'pageUrl is required.' });
-  }
-  if (typeof targetHtml !== 'string') {
-    return res.status(400).json({ error: 'targetHtml is required.' });
-  }
-  if (typeof targetSelector !== 'string' || !targetSelector.trim()) {
-    return res.status(400).json({ error: 'targetSelector is required.' });
-  }
-
-  let parsedUrl;
+app.post('/detect', async (req, res) => {
   try {
-    parsedUrl = new URL(pageUrl.trim());
-  } catch {
-    return res.status(400).json({ error: 'pageUrl must be a valid absolute URL (including https://).' });
-  }
-  if (!/^https?:$/i.test(parsedUrl.protocol)) {
-    return res.status(400).json({ error: 'pageUrl must use http or https.' });
-  }
-
-  let pageContext;
-  try {
+    const parsedUrl = validatePageUrl(req.body?.pageUrl);
     const { html, finalUrl } = await fetchPageHtml(parsedUrl.href);
-    pageContext = extractPageContextFromHtml(html, finalUrl);
-  } catch (err) {
-    const message =
-      err instanceof Error ? err.message : 'Failed to fetch or parse the customer website.';
-    return res.status(502).json({
-      error: `Could not load PAGE_URL for context: ${message}`,
-    });
-  }
+    const $ = cheerio.load(html, { decodeEntities: false });
+    const hero = detectHeroElement($);
 
-  const prompt = buildClaudePrompt({
-    pageUrl: parsedUrl.href,
-    targetHtml,
-    targetSelector: targetSelector.trim(),
-    pageContext,
-  });
-
-  const anthropic = new Anthropic({ apiKey });
-
-  try {
-    const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 16384,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const textBlocks = (msg.content || [])
-      .filter((b) => b.type === 'text')
-      .map((b) => b.text)
-      .join('\n');
-
-    if (!textBlocks.trim()) {
-      return res.status(502).json({ error: 'The model returned an empty response. Try again.' });
+    if (!hero) {
+      return res.status(404).json({ error: 'Could not detect a hero element on this page.' });
     }
 
-    return res.json({ sitemap: unwrapOptionalMarkdownFence(textBlocks) });
-  } catch (err) {
-    const message =
-      err instanceof Error ? err.message : 'Claude API request failed.';
-    console.error('Anthropic API error:', err);
-    return res.status(502).json({
-      error: `Claude API error: ${message}`,
+    return res.json({
+      pageUrl: finalUrl,
+      targetSelector: bestSelectorForElement($, hero),
+      targetHtml: $.html(hero),
     });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Hero detection failed.';
+    return res.status(400).json({ error: `Hero detection failed: ${message}` });
+  }
+});
+
+app.post('/generate', (req, res) => {
+  try {
+    const parsedUrl = validatePageUrl(req.body?.pageUrl);
+    const targetHtml = req.body?.targetHtml;
+    const targetSelector = req.body?.targetSelector;
+
+    if (typeof targetHtml !== 'string' || !targetHtml.trim()) {
+      return res.status(400).json({ error: 'targetHtml is required.' });
+    }
+    if (typeof targetSelector !== 'string' || !targetSelector.trim()) {
+      return res.status(400).json({ error: 'targetSelector is required.' });
+    }
+
+    const customerName = deriveCustomerName(parsedUrl.href);
+    const transformerHtml = buildTransformerHtml(targetHtml);
+    const sitemap = generateSitemap(customerName, transformerHtml, targetSelector.trim());
+
+    return res.json({ sitemap });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Sitemap generation failed.';
+    return res.status(400).json({ error: `Sitemap generation failed: ${message}` });
   }
 });
 

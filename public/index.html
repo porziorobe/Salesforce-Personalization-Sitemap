@@ -10,27 +10,22 @@
     <div class="app">
       <header class="app-header" role="banner">
         <div class="header-inner">
-          <div class="brand-mark" aria-hidden="true">
-            <span class="brand-cloud"></span>
-          </div>
+          <div class="brand-mark" aria-hidden="true"><span class="brand-cloud"></span></div>
           <div class="header-titles">
             <h1 class="app-title">Personalization Sitemap Generator</h1>
-            <p class="app-subtitle">
-              Build Interaction Studio sitemap snippets from a live page and target markup.
-            </p>
+            <p class="app-subtitle">Detect homepage hero elements and generate Salesforce sitemap code.</p>
           </div>
         </div>
       </header>
 
       <main class="app-main" role="main">
-        <section class="panel panel-form" aria-labelledby="form-heading">
-          <h2 id="form-heading" class="panel-heading">Inputs</h2>
-          <form id="generate-form" class="form" novalidate>
+        <section class="panel" aria-labelledby="inputs-heading">
+          <h2 id="inputs-heading" class="panel-heading">Inputs</h2>
+          <form id="workflow-form" class="form" novalidate>
             <div class="field">
               <label class="label" for="page-url">Customer Website URL</label>
               <input
                 id="page-url"
-                name="pageUrl"
                 type="url"
                 class="input"
                 placeholder="https://www.example.com/"
@@ -38,65 +33,57 @@
                 required
               />
             </div>
-            <div class="field">
-              <label class="label" for="target-html">Target Element HTML</label>
-              <textarea
-                id="target-html"
-                name="targetHtml"
-                class="textarea textarea-tall"
-                rows="8"
-                placeholder="Paste the outer HTML of the hero or zone to personalize."
-                required
-              ></textarea>
-            </div>
-            <div class="field">
-              <label class="label" for="target-selector">CSS Selector</label>
-              <input
-                id="target-selector"
-                name="targetSelector"
-                type="text"
-                class="input"
-                placeholder=".hero-banner, #main-hero, etc."
-                required
-              />
-            </div>
             <div class="actions">
-              <button type="submit" id="generate-btn" class="btn btn-primary">
-                <span class="btn-label">Generate Sitemap</span>
-                <span class="btn-loading" hidden aria-hidden="true">Generating…</span>
+              <button type="button" id="detect-btn" class="btn btn-primary">
+                <span class="btn-label">Detect Hero Element</span>
+                <span class="btn-loading" hidden aria-hidden="true">Detecting...</span>
               </button>
+            </div>
+
+            <div id="detected-fields" hidden>
+              <div class="field">
+                <label class="label" for="target-selector">Detected CSS Selector</label>
+                <input id="target-selector" type="text" class="input" readonly />
+              </div>
+              <div class="field">
+                <label class="label" for="target-html">Detected Element HTML</label>
+                <textarea id="target-html" class="textarea textarea-tall" rows="8" readonly></textarea>
+              </div>
+              <div class="toggle-row">
+                <label class="toggle-label" for="manual-toggle">
+                  <input type="checkbox" id="manual-toggle" />
+                  Looks wrong? Paste your own
+                </label>
+              </div>
+              <div class="actions">
+                <button type="button" id="generate-btn" class="btn btn-primary">Generate Sitemap</button>
+              </div>
             </div>
           </form>
         </section>
 
-        <section class="panel panel-output" aria-labelledby="output-heading">
+        <section class="panel" aria-labelledby="output-heading">
           <h2 id="output-heading" class="panel-heading">Generated sitemap</h2>
-          <div
-            id="error-banner"
-            class="banner banner-error"
-            role="alert"
-            hidden
-          ></div>
+          <div id="error-banner" class="banner banner-error" role="alert" hidden></div>
           <label class="label visually-hidden" for="output">Sitemap JavaScript output</label>
           <textarea
             id="output"
             class="textarea output-area"
-            readonly
             rows="18"
+            readonly
             placeholder="Generated JavaScript will appear here."
           ></textarea>
           <div class="actions actions-output">
-            <button type="button" id="copy-btn" class="btn btn-neutral" disabled>
-              Copy to Clipboard
-            </button>
+            <button type="button" id="copy-btn" class="btn btn-neutral" disabled>Copy to Clipboard</button>
           </div>
         </section>
       </main>
 
       <footer class="app-footer" role="contentinfo">
-        <p>For Salesforce sales engineers. Uses Claude to format output; verify before production use.</p>
+        <p>Designed for Salesforce sales engineers. Deterministic template output, no LLM dependency.</p>
       </footer>
     </div>
+
     <script src="/app.js"></script>
   </body>
 </html>

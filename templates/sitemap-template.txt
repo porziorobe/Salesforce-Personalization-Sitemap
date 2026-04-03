@@ -1,0 +1,131 @@
+javascript//SimpleSitemap
+/** Enable detailed client-side console logging. Do not use in Prod environment! */
+SalesforceInteractions.setLoggingLevel(100);
+/** START: Quick consent management shortcut. Do not use in Prod environment!  */
+SalesforceInteractions.updateConsents({
+    purpose: SalesforceInteractions.ConsentPurpose.Tracking,
+    provider: "Example Consent Manager",
+    status: SalesforceInteractions.ConsentStatus.OptIn
+});
+
+document.addEventListener(
+    SalesforceInteractions.CustomEvents.OnSetAnonymousId, () => {
+        SalesforceInteractions.sendEvent({
+            user: {
+                attributes: {
+                    eventType: 'identity'
+                }
+            }
+        })
+    }
+);
+
+document.querySelector('html').style.fontSize = '14px';
+SalesforceInteractions.Personalization.Config.initialize({
+  additionalTransformers: [
+    {
+      name: "[CustomerName]_Homepage_Hero_Banner",
+      transformerType: "Handlebars",
+      lastModifiedDate: new Date().getTime() - (1000 * 60 * 5),
+      substitutionDefinitions: {
+        BackgroundImageUrl: {
+          defaultValue: '[attributes].[BackgroundImageUrl]'
+        },
+        Header: {
+          defaultValue: '[attributes].[Header]'
+        },
+        Subheader: {
+          defaultValue: '[attributes].[Subheader]'
+        },
+        CallToActionUrl: {
+          defaultValue: '[attributes].[CallToActionUrl]'
+        },
+        CallToActionText: {
+          defaultValue: '[attributes].[CallToActionText]'
+        }
+      },
+      transformerTypeDetails: {
+        html: `
+{{TRANSFORMER_HTML}}
+        `
+      }
+    },
+  ]
+});
+
+/* ===================== SITEMAP ===================== */
+
+console.log("PSP: Hello world from Data Cloud");
+
+SalesforceInteractions.setLoggingLevel(100);
+
+SalesforceInteractions.updateConsents({
+    purpose: SalesforceInteractions.ConsentPurpose.Tracking,
+    provider: "Example Consent Manager",
+    status: SalesforceInteractions.ConsentStatus.OptIn
+});
+
+document.addEventListener(
+    SalesforceInteractions.CustomEvents.OnSetAnonymousId, () => {
+        SalesforceInteractions.sendEvent({
+            user: {
+                attributes: {
+                    eventType: 'identity',
+                    isAnonymous: 1
+                }
+            }
+        })
+    }
+);
+
+/** START - Sitemap Helpers */
+
+function getMetaTag(tagName){
+    var metaTags = document.getElementsByTagName("META");
+    var metaTagContent = "";
+    for (var i = 0; i < metaTags.length; i++) {
+        if(metaTags[i].name == tagName){
+            metaTagContent = metaTags[i].getAttribute('content');
+        }
+    }
+    return metaTagContent;
+}
+
+/** END - Sitemap Helpers */
+
+SalesforceInteractions.init().then(() => {
+
+    const config = {
+        global: {
+            onActionEvent: (event) => {
+                return event;
+            }
+        },
+        pageTypes: [
+            {
+                name: "Homepage",
+                isMatch: () => window.location.pathname === '/',
+                interaction: {
+                    name: "Homepage",
+                    eventType: "browse",
+                    pageType: "Homepage"
+                },
+                onActionEvent: (event) => {
+                    if (event.interaction.name == "Homepage") {
+                        SalesforceInteractions.Personalization.fetch(["[CustomerName]_Homepage_Hero_Banner"]).then(personalizationResponse => {
+                            renderBannerHeader(personalizationResponse.personalizations[0].attributes)
+                        })
+                    }
+                    return event;
+                },
+                contentZones: [
+                    {name: "Homepage | Hero", selector: "TARGET_SELECTOR"},
+                ]
+            },
+        ],
+        pageTypeDefault: {
+            name: "Default"
+        }
+    };
+    SalesforceInteractions.initSitemap(config);
+});
