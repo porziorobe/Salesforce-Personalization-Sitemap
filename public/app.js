@@ -9,6 +9,9 @@
   const outputArea = document.getElementById('output');
   const copyBtn = document.getElementById('copy-btn');
   const errorBanner = document.getElementById('error-banner');
+  const extractingIndicator = document.getElementById('extracting-indicator');
+
+  let extractedStyles = null;
 
   function setDetectLoading(loading) {
     detectBtn.disabled = loading;
@@ -31,10 +34,32 @@
     targetHtmlInput.readOnly = !editable;
   }
 
+  async function extractStyles(pageUrl, targetSelector) {
+    extractingIndicator.hidden = false;
+    try {
+      const response = await fetch('/extract-styles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageUrl, targetSelector }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const msg = typeof data.error === 'string' ? data.error : `Style extraction failed (${response.status}).`;
+        throw new Error(msg);
+      }
+
+      extractedStyles = data.extractedStyles || null;
+    } finally {
+      extractingIndicator.hidden = true;
+    }
+  }
+
   async function detectHero() {
     clearError();
     outputArea.value = '';
     copyBtn.disabled = true;
+    extractedStyles = null;
 
     const pageUrl = pageUrlInput.value.trim();
     if (!pageUrl) {
@@ -62,6 +87,13 @@
       detectedFields.hidden = false;
       manualToggle.checked = false;
       setEditable(false);
+
+      try {
+        await extractStyles(pageUrl, targetSelectorInput.value.trim());
+      } catch (extractErr) {
+        const msg = extractErr instanceof Error ? extractErr.message : 'Style extraction failed.';
+        showError(msg);
+      }
     } catch {
       showError('Network error during hero detection. Try again.');
     } finally {
@@ -88,7 +120,12 @@
       const response = await fetch('/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pageUrl, targetSelector, targetHtml }),
+        body: JSON.stringify({
+          pageUrl,
+          targetSelector,
+          targetHtml,
+          extractedStyles,
+        }),
       });
 
       const data = await response.json().catch(() => ({}));

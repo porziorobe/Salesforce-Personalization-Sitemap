@@ -2,72 +2,50 @@ const path = require('path');
 const fs = require('fs');
 const express = require('express');
 const cheerio = require('cheerio');
+const fetch = require('node-fetch');
+const cssParse = require('css-parse');
 
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const TEMPLATE_PATH = path.join(__dirname, 'templates', 'sitemap-template.txt');
 const SITEMAP_TEMPLATE = fs.readFileSync(TEMPLATE_PATH, 'utf8');
 
-const DEFAULT_TRANSFORMER_HTML = `
-            <style>
-                .sfdcep-banner {
-                    margin: 0px auto;
-                    width: 100%;
-                    min-height: 600px;
-                    display: flex;
-                    flex-flow: column wrap;
-                    justify-content: center;
-                    font-family: Arial, Helvetica, sans-serif;
-                }
-                .sfdcep-banner-header {
-                    font-size: 32px;
-                    padding-bottom: 40px;
-                    font-weight: 600;
-                    color: #DDDDDD;
-                    text-align: center;
-                }
-                .sfdcep-banner-subheader {
-                    font-size: 20px;
-                    font-weight: 400;
-                    color: #DDDDDD;
-                    text-align: center;
-                    padding-bottom: 40px;
-                }
-                .sfdcep-banner-cta {
-                    text-align: center;
-                }
-                .sfdcep-banner-cta a {
-                    padding: 10px 20px;
-                    display: inline-block;
-                    background-color: #097fb3;
-                    border-radius: 20px;
-                    color: #DDDDDD;
-                    text-decoration: none;
-                    font-weight: 400;
-                    font-size: 18px;
-                }
-            </style>
-            <div class="sfdcep-banner" style="background: url('{{subVar 'BackgroundImageUrl'}}') no-repeat center center;">
-                <div class="sfdcep-banner-header">{{subVar 'Header'}}</div>
-                <div class="sfdcep-banner-subheader">{{subVar 'Subheader'}}</div>
-                <div class="sfdcep-banner-cta">
-                    <a href="{{subVar 'CallToActionUrl'}}">{{subVar 'CallToActionText'}}</a>
-                </div>
-            </div>`;
+const HERO_KEYWORDS = /(hero|banner|jumbotham|masthead|splash|jumbo)/i;
 
-const HERO_KEYWORDS = /(hero|banner|jumbotron|masthead|splash|jumbo)/i;
+const DEFAULT_STYLES = {
+  banner: {
+    backgroundColor: '#333333',
+    fontFamily: 'Arial, Helvetica, sans-serif',
+  },
+  header: {
+    fontSize: '32px',
+    fontWeight: '600',
+    color: '#DDDDDD',
+  },
+  subheader: {
+    fontSize: '20px',
+    fontWeight: '400',
+    color: '#DDDDDD',
+  },
+  cta: {
+    backgroundColor: '#097fb3',
+    borderRadius: '20px',
+    padding: '10px 20px',
+    color: '#DDDDDD',
+  },
+};
 
-async function fetchPageHtml(pageUrl) {
+async function fetchText(url) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25000);
   try {
-    const response = await fetch(pageUrl, {
+    const response = await fetch(url, {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
         'User-Agent':
-          'Mozilla/5.0 (compatible; SalesforceSitemapGenerator/1.0; +https://www.salesforce.com)',
-        Accept: 'text/html,application/xhtml+xml',
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,text/css,*/*',
       },
     });
 
@@ -75,20 +53,27 @@ async function fetchPageHtml(pageUrl) {
       throw new Error(`HTTP ${response.status} ${response.statusText || ''}`.trim());
     }
 
-    const contentType = response.headers.get('content-type') || '';
-    if (!/text\/html|application\/xhtml/i.test(contentType) && !contentType.includes('text/plain')) {
-      throw new Error(`Unexpected content-type: ${contentType || 'unknown'}`);
-    }
-
-    return { html: await response.text(), finalUrl: response.url || pageUrl };
+    return {
+      text: await response.text(),
+      finalUrl: response.url || url,
+      contentType: response.headers.get('content-type') || '',
+    };
   } catch (error) {
     if (error.name === 'AbortError') {
-      throw new Error('Request timed out while fetching the page URL.');
+      throw new Error('Request timed out while fetching URL.');
     }
     throw error;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function fetchPageHtml(pageUrl) {
+  const { text, finalUrl, contentType } = await fetchText(pageUrl);
+  if (!/text\/html|application\/xhtml/i.test(contentType) && !contentType.includes('text/plain')) {
+    throw new Error(`Unexpected content-type: ${contentType || 'unknown'}`);
+  }
+  return { html: text, finalUrl };
 }
 
 function validatePageUrl(pageUrl) {
@@ -100,6 +85,13 @@ function validatePageUrl(pageUrl) {
     throw new Error('pageUrl must use http or https.');
   }
   return parsedUrl;
+}
+
+function sanitizeClassNames(classNames) {
+  return classNames
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .filter((name) => /^[-_a-zA-Z0-9:]+$/.test(name));
 }
 
 function toAbsoluteSelector(element) {
@@ -126,9 +118,7 @@ function bestSelectorForElement($, element) {
     return `#${id}`;
   }
 
-  const classes = (($(element).attr('class') || '').split(/\s+/).filter(Boolean).slice(0, 3))
-    .filter((name) => /^[-_a-zA-Z0-9]+$/.test(name));
-
+  const classes = sanitizeClassNames(($(element).attr('class') || '').split(/\s+/)).slice(0, 3);
   if (classes.length > 0) {
     return `${element.tagName}.${classes.join('.')}`;
   }
@@ -154,6 +144,201 @@ function detectHeroElement($) {
   return null;
 }
 
+function parseStyleAttribute(styleAttr) {
+  const out = {};
+  if (!styleAttr) return out;
+
+  styleAttr
+    .split(';')
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .forEach((declaration) => {
+      const idx = declaration.indexOf(':');
+      if (idx === -1) return;
+      const property = declaration.slice(0, idx).trim().toLowerCase();
+      const value = declaration.slice(idx + 1).trim();
+      if (property && value) {
+        out[property] = value;
+      }
+    });
+
+  return out;
+}
+
+function mergeDefined(target, source) {
+  if (!source) return;
+  Object.keys(source).forEach((key) => {
+    const value = source[key];
+    if (typeof value === 'string' && value.trim()) {
+      target[key] = value.trim();
+    }
+  });
+}
+
+function collectHeroClassSet($, heroEl) {
+  const classSet = new Set();
+  const collect = (el) => {
+    sanitizeClassNames(($(el).attr('class') || '').split(/\s+/)).forEach((name) => classSet.add(name));
+  };
+
+  collect(heroEl);
+  $(heroEl)
+    .children()
+    .each((_, child) => collect(child));
+
+  return classSet;
+}
+
+function selectorMatches(selector, targetSelector, heroClassSet) {
+  if (!selector) return false;
+  const normalized = selector.toLowerCase();
+  if (targetSelector && normalized.includes(targetSelector.toLowerCase())) {
+    return true;
+  }
+  for (const className of heroClassSet) {
+    if (normalized.includes(`.${className.toLowerCase()}`)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function inferBucket(selector, declarations) {
+  const normalized = (selector || '').toLowerCase();
+
+  if (normalized.includes(' a') || normalized.endsWith('a') || normalized.includes('.cta') || normalized.includes('.btn')) {
+    return 'cta';
+  }
+  if (normalized.includes('h1') || normalized.includes('title') || normalized.includes('header')) {
+    return 'header';
+  }
+  if (normalized.includes('h2') || normalized.includes('p') || normalized.includes('subheader') || normalized.includes('subtitle')) {
+    return 'subheader';
+  }
+  if (declarations['background-color'] || declarations.background || declarations['font-family']) {
+    return 'banner';
+  }
+  return 'banner';
+}
+
+function pickStyleValues(base, declarations, bucket) {
+  if (bucket === 'banner') {
+    if (declarations['background-color']) base.banner.backgroundColor = declarations['background-color'];
+    if (!declarations['background-color'] && declarations.background) base.banner.backgroundColor = declarations.background;
+    if (declarations['font-family']) base.banner.fontFamily = declarations['font-family'];
+  }
+
+  if (bucket === 'header') {
+    if (declarations.color) base.header.color = declarations.color;
+    if (declarations['font-size']) base.header.fontSize = declarations['font-size'];
+    if (declarations['font-weight']) base.header.fontWeight = declarations['font-weight'];
+  }
+
+  if (bucket === 'subheader') {
+    if (declarations.color) base.subheader.color = declarations.color;
+    if (declarations['font-size']) base.subheader.fontSize = declarations['font-size'];
+    if (declarations['font-weight']) base.subheader.fontWeight = declarations['font-weight'];
+  }
+
+  if (bucket === 'cta') {
+    if (declarations['background-color']) base.cta.backgroundColor = declarations['background-color'];
+    if (!declarations['background-color'] && declarations.background) base.cta.backgroundColor = declarations.background;
+    if (declarations['border-radius']) base.cta.borderRadius = declarations['border-radius'];
+    if (declarations.padding) base.cta.padding = declarations.padding;
+    if (declarations.color) base.cta.color = declarations.color;
+  }
+}
+
+function extractMatchingRulesFromCss(cssText, targetSelector, heroClassSet) {
+  let ast;
+  try {
+    ast = cssParse(cssText);
+  } catch {
+    return [];
+  }
+
+  const out = [];
+  const rules = ast.stylesheet && Array.isArray(ast.stylesheet.rules) ? ast.stylesheet.rules : [];
+
+  rules.forEach((rule) => {
+    if (rule.type !== 'rule' || !Array.isArray(rule.selectors) || !Array.isArray(rule.declarations)) {
+      return;
+    }
+
+    const matchedSelectors = rule.selectors.filter((selector) => selectorMatches(selector, targetSelector, heroClassSet));
+    if (matchedSelectors.length === 0) return;
+
+    const declarations = {};
+    rule.declarations.forEach((decl) => {
+      if (decl.type === 'declaration' && decl.property && decl.value) {
+        declarations[decl.property.toLowerCase()] = decl.value;
+      }
+    });
+
+    matchedSelectors.forEach((selector) => {
+      out.push({ selector, declarations });
+    });
+  });
+
+  return out;
+}
+
+async function extractStylesForSelector(pageUrl, targetSelector) {
+  const { html, finalUrl } = await fetchPageHtml(pageUrl);
+  const $ = cheerio.load(html, { decodeEntities: false });
+  const heroEl = $(targetSelector).first();
+
+  if (!heroEl || heroEl.length === 0) {
+    throw new Error('Could not locate targetSelector on the fetched page.');
+  }
+
+  const extracted = JSON.parse(JSON.stringify(DEFAULT_STYLES));
+
+  const heroClassSet = collectHeroClassSet($, heroEl.get(0));
+
+  const inlineCandidates = [];
+  inlineCandidates.push({ selector: targetSelector, declarations: parseStyleAttribute(heroEl.attr('style') || '') });
+  heroEl.children().each((_, child) => {
+    const childSel = child.tagName || '';
+    inlineCandidates.push({ selector: childSel, declarations: parseStyleAttribute($(child).attr('style') || '') });
+  });
+
+  inlineCandidates.forEach(({ selector, declarations }) => {
+    const bucket = inferBucket(selector, declarations);
+    pickStyleValues(extracted, declarations, bucket);
+  });
+
+  const styleBlocks = $('style')
+    .map((_, styleEl) => $(styleEl).html() || '')
+    .get()
+    .filter(Boolean);
+
+  styleBlocks.forEach((cssText) => {
+    extractMatchingRulesFromCss(cssText, targetSelector, heroClassSet).forEach(({ selector, declarations }) => {
+      pickStyleValues(extracted, declarations, inferBucket(selector, declarations));
+    });
+  });
+
+  const stylesheetLinks = $('link[rel="stylesheet"]')
+    .map((_, linkEl) => $(linkEl).attr('href'))
+    .get()
+    .filter(Boolean);
+
+  for (const href of stylesheetLinks) {
+    try {
+      const absoluteUrl = new URL(href, finalUrl).toString();
+      const { text: cssText } = await fetchText(absoluteUrl);
+      extractMatchingRulesFromCss(cssText, targetSelector, heroClassSet).forEach(({ selector, declarations }) => {
+        pickStyleValues(extracted, declarations, inferBucket(selector, declarations));
+      });
+    } catch {
+      // Ignore stylesheet fetch/parse errors and continue with remaining sources.
+    }
+  }
+
+  return extracted;
+}
+
 function deriveCustomerName(pageUrl) {
   const hostname = new URL(pageUrl).hostname.replace(/^www\./i, '');
   const root = hostname.split('.')[0] || 'Customer';
@@ -165,44 +350,43 @@ function deriveCustomerName(pageUrl) {
     .join('');
 }
 
-function sanitizeClasses(classNames) {
-  return classNames
-    .map((name) => name.trim())
-    .filter(Boolean)
-    .filter((name) => /^[-_a-zA-Z0-9:]+$/.test(name));
-}
-
-function buildTransformerHtml(targetHtml) {
+function collectRootClassesFromHtml(targetHtml) {
   const loaded = cheerio.load(targetHtml, { decodeEntities: false });
   const root = loaded.root().children().first();
-
-  if (!root || root.length === 0) {
-    return DEFAULT_TRANSFORMER_HTML;
-  }
-
-  const classes = sanitizeClasses((root.attr('class') || '').split(/\s+/));
-  const reusableClasses = classes.filter((name) => HERO_KEYWORDS.test(name));
-
-  if (reusableClasses.length === 0) {
-    return DEFAULT_TRANSFORMER_HTML;
-  }
-
-  const wrapperClasses = reusableClasses.join(' ');
-  return `
-            <div class="${wrapperClasses}" style="background-image: url('{{subVar 'BackgroundImageUrl'}}'); background-size: cover; background-position: center;">
-                <div class="${wrapperClasses}__header">{{subVar 'Header'}}</div>
-                <div class="${wrapperClasses}__subheader">{{subVar 'Subheader'}}</div>
-                <div class="${wrapperClasses}__cta">
-                    <a href="{{subVar 'CallToActionUrl'}}">{{subVar 'CallToActionText'}}</a>
-                </div>
-            </div>`;
+  if (!root || root.length === 0) return [];
+  return sanitizeClassNames((root.attr('class') || '').split(/\s+/));
 }
 
-function generateSitemap(customerName, transformerHtml, targetSelector) {
+function normalizeExtractedStyles(input) {
+  const normalized = JSON.parse(JSON.stringify(DEFAULT_STYLES));
+  if (!input || typeof input !== 'object') return normalized;
+
+  mergeDefined(normalized.banner, input.banner);
+  mergeDefined(normalized.header, input.header);
+  mergeDefined(normalized.subheader, input.subheader);
+  mergeDefined(normalized.cta, input.cta);
+
+  return normalized;
+}
+
+function generateSitemap(customerName, targetSelector, wrapperClasses, extractedStyles) {
   return SITEMAP_TEMPLATE
     .replaceAll('[CustomerName]', customerName)
-    .replace('{{TRANSFORMER_HTML}}', transformerHtml)
-    .replace('TARGET_SELECTOR', targetSelector);
+    .replaceAll('[EXTRACTED_FONT_FAMILY]', extractedStyles.banner.fontFamily)
+    .replaceAll('[EXTRACTED_BANNER_BG]', extractedStyles.banner.backgroundColor)
+    .replaceAll('[EXTRACTED_HEADER_SIZE]', extractedStyles.header.fontSize)
+    .replaceAll('[EXTRACTED_HEADER_WEIGHT]', extractedStyles.header.fontWeight)
+    .replaceAll('[EXTRACTED_HEADER_COLOR]', extractedStyles.header.color)
+    .replaceAll('[EXTRACTED_SUBHEADER_SIZE]', extractedStyles.subheader.fontSize)
+    .replaceAll('[EXTRACTED_SUBHEADER_WEIGHT]', extractedStyles.subheader.fontWeight)
+    .replaceAll('[EXTRACTED_SUBHEADER_COLOR]', extractedStyles.subheader.color)
+    .replaceAll('[EXTRACTED_CTA_PADDING]', extractedStyles.cta.padding)
+    .replaceAll('[EXTRACTED_CTA_BG]', extractedStyles.cta.backgroundColor)
+    .replaceAll('[EXTRACTED_CTA_RADIUS]', extractedStyles.cta.borderRadius)
+    .replaceAll('[EXTRACTED_CTA_COLOR]', extractedStyles.cta.color)
+    .replaceAll('[EXTRACTED_WRAPPER_CLASSES]', wrapperClasses)
+    .replace('TARGET_SELECTOR', targetSelector)
+    .replace('sfdcep-banner "', 'sfdcep-banner"');
 }
 
 const app = express();
@@ -233,11 +417,29 @@ app.post('/detect', async (req, res) => {
   }
 });
 
+app.post('/extract-styles', async (req, res) => {
+  try {
+    const parsedUrl = validatePageUrl(req.body?.pageUrl);
+    const targetSelector = req.body?.targetSelector;
+
+    if (typeof targetSelector !== 'string' || !targetSelector.trim()) {
+      return res.status(400).json({ error: 'targetSelector is required.' });
+    }
+
+    const extractedStyles = await extractStylesForSelector(parsedUrl.href, targetSelector.trim());
+    return res.json({ extractedStyles });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Style extraction failed.';
+    return res.status(400).json({ error: `Style extraction failed: ${message}` });
+  }
+});
+
 app.post('/generate', (req, res) => {
   try {
     const parsedUrl = validatePageUrl(req.body?.pageUrl);
     const targetHtml = req.body?.targetHtml;
     const targetSelector = req.body?.targetSelector;
+    const extractedStyles = normalizeExtractedStyles(req.body?.extractedStyles);
 
     if (typeof targetHtml !== 'string' || !targetHtml.trim()) {
       return res.status(400).json({ error: 'targetHtml is required.' });
@@ -247,9 +449,10 @@ app.post('/generate', (req, res) => {
     }
 
     const customerName = deriveCustomerName(parsedUrl.href);
-    const transformerHtml = buildTransformerHtml(targetHtml);
-    const sitemap = generateSitemap(customerName, transformerHtml, targetSelector.trim());
+    const rootClasses = collectRootClassesFromHtml(targetHtml);
+    const wrapperClasses = rootClasses.length ? ` ${rootClasses.join(' ')}` : '';
 
+    const sitemap = generateSitemap(customerName, targetSelector.trim(), wrapperClasses, extractedStyles);
     return res.json({ sitemap });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Sitemap generation failed.';

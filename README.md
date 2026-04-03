@@ -1,17 +1,19 @@
 # Personalization Sitemap Generator
 
-A deterministic Node/Express web app for Salesforce sales engineers. It detects a likely homepage hero element from a live customer site and generates a Salesforce Personalization sitemap string via fixed string templating.
+A deterministic Node/Express web app for Salesforce sales engineers. It detects likely hero content from a live customer site, extracts reusable CSS style values, and generates a Salesforce Personalization sitemap string with fixed templating.
 
 ## Stack
 
 - Node + Express backend
 - Vanilla HTML/CSS/JS frontend
 - Cheerio for HTML parsing
+- css-parse for stylesheet parsing
+- node-fetch for page and external CSS fetches
 - No LLM or external AI API
 
 ## Environment variables
 
-Only one variable is required for local development:
+Only one variable is needed for local development:
 
 - `PORT` (optional locally, defaults to `3000`)
 
@@ -35,18 +37,22 @@ Then open [http://localhost:3000](http://localhost:3000).
 
 - `POST /detect`
   - Request: `{ "pageUrl": "https://example.com" }`
-  - Response: `{ "targetSelector": "...", "targetHtml": "...", "pageUrl": "..." }`
+  - Response: `{ "pageUrl": "...", "targetSelector": "...", "targetHtml": "..." }`
+
+- `POST /extract-styles`
+  - Request: `{ "pageUrl": "https://example.com", "targetSelector": ".hero" }`
+  - Response: `{ "extractedStyles": { "banner": ..., "header": ..., "subheader": ..., "cta": ... } }`
 
 - `POST /generate`
-  - Request: `{ "pageUrl": "https://example.com", "targetHtml": "...", "targetSelector": "..." }`
+  - Request: `{ "pageUrl": "https://example.com", "targetHtml": "...", "targetSelector": "...", "extractedStyles": {...} }`
   - Response: `{ "sitemap": "..." }`
 
 ## Heroku deployment via GitHub
 
 1. Push this app to GitHub.
 2. In Heroku, create a new app.
-3. Connect the GitHub repository in **Deploy**.
-4. Deploy the `main` branch (or enable auto deploy).
-5. Ensure the app runs with the included `Procfile` (`web: node index.js`).
+3. Connect your GitHub repository under **Deploy**.
+4. Deploy the `main` branch (or enable automatic deploys).
+5. Heroku uses the included `Procfile` (`web: node index.js`) and `npm start` script.
 
-If this app lives in a subdirectory of a larger repo, either deploy this folder as its own repo or use a subdirectory buildpack and set `PROJECT_PATH=sitemap-generator`.
+If this app is inside a larger repository, either deploy this folder as its own repo or use a subdirectory buildpack with `PROJECT_PATH=sitemap-generator`.

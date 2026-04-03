@@ -13,7 +13,7 @@
           <div class="brand-mark" aria-hidden="true"><span class="brand-cloud"></span></div>
           <div class="header-titles">
             <h1 class="app-title">Personalization Sitemap Generator</h1>
-            <p class="app-subtitle">Detect homepage hero elements and generate Salesforce sitemap code.</p>
+            <p class="app-subtitle">Detect hero content, extract styles, and generate Salesforce sitemap code.</p>
           </div>
         </div>
       </header>
@@ -38,6 +38,7 @@
                 <span class="btn-label">Detect Hero Element</span>
                 <span class="btn-loading" hidden aria-hidden="true">Detecting...</span>
               </button>
+              <span id="extracting-indicator" class="status-chip" hidden>Extracting styles...</span>
             </div>
 
             <div id="detected-fields" hidden>
@@ -52,7 +53,7 @@
               <div class="toggle-row">
                 <label class="toggle-label" for="manual-toggle">
                   <input type="checkbox" id="manual-toggle" />
-                  Looks wrong? Paste your own
+                  Looks wrong? Edit manually
                 </label>
               </div>
               <div class="actions">
@@ -80,7 +81,7 @@
       </main>
 
       <footer class="app-footer" role="contentinfo">
-        <p>Designed for Salesforce sales engineers. Deterministic template output, no LLM dependency.</p>
+        <p>Designed for Salesforce sales engineers. Deterministic output with CSS extraction and no LLM dependency.</p>
       </footer>
     </div>
 

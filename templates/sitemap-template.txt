@@ -46,7 +46,52 @@ SalesforceInteractions.Personalization.Config.initialize({
       },
       transformerTypeDetails: {
         html: `
-{{TRANSFORMER_HTML}}
+            <style>
+                .sfdcep-banner {
+                    margin: 0px auto;
+                    width: 100%;
+                    min-height: 600px;
+                    display: flex;
+                    flex-flow: column wrap;
+                    justify-content: center;
+                    font-family: [EXTRACTED_FONT_FAMILY];
+                    background-color: [EXTRACTED_BANNER_BG];
+                }
+                .sfdcep-banner-header {
+                    font-size: [EXTRACTED_HEADER_SIZE];
+                    padding-bottom: 40px;
+                    font-weight: [EXTRACTED_HEADER_WEIGHT];
+                    color: [EXTRACTED_HEADER_COLOR];
+                    text-align: center;
+                }
+                .sfdcep-banner-subheader {
+                    font-size: [EXTRACTED_SUBHEADER_SIZE];
+                    font-weight: [EXTRACTED_SUBHEADER_WEIGHT];
+                    color: [EXTRACTED_SUBHEADER_COLOR];
+                    text-align: center;
+                    padding-bottom: 40px;
+                }
+                .sfdcep-banner-cta {
+                    text-align: center;
+                }
+                .sfdcep-banner-cta a {
+                    padding: [EXTRACTED_CTA_PADDING];
+                    display: inline-block;
+                    background-color: [EXTRACTED_CTA_BG];
+                    border-radius: [EXTRACTED_CTA_RADIUS];
+                    color: [EXTRACTED_CTA_COLOR];
+                    text-decoration: none;
+                    font-weight: 400;
+                    font-size: 18px;
+                }
+            </style>
+            <div class="sfdcep-banner [EXTRACTED_WRAPPER_CLASSES]" style="background: url('{{subVar 'BackgroundImageUrl'}}') no-repeat center center;">
+                <div class="sfdcep-banner-header">{{subVar 'Header'}}</div>
+                <div class="sfdcep-banner-subheader">{{subVar 'Subheader'}}</div>
+                <div class="sfdcep-banner-cta">
+                    <a href="{{subVar 'CallToActionUrl'}}">{{subVar 'CallToActionText'}}</a>
+                </div>
+            </div>
         `
       }
     },
