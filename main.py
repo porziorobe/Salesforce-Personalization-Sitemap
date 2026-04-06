@@ -7,7 +7,7 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 import cssutils
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 from flask import Flask, request, jsonify, render_template
 
 from dotenv import load_dotenv
@@ -200,9 +200,6 @@ Rules:
    Target the customer's actual class names in the <style> block.
    Do NOT override layout/dimensional properties — let the markup structure from
    TARGET_HTML handle the layout naturally.
-   CRITICAL: Every CSS declaration MUST end with !important to override the
-   customer's global stylesheets. Example:
-   .hero-header {{ font-size: 32px !important; font-weight: 600 !important; color: #DDD !important; }}
 
 5. ALL FIVE Handlebars substitution variables are MANDATORY — no exceptions.
    Use exactly this syntax (four curly braces on each side):
@@ -240,8 +237,7 @@ ISSUE_INSTRUCTIONS = {
     "header_style": (
         "HEADER: Revise the heading element to better match the customer's original "
         "styling. Use EXTRACTED_STYLES header values (fontSize, fontWeight, color) and "
-        "the customer's actual class names from TARGET_HTML. "
-        "All declarations must use !important."
+        "the customer's actual class names from TARGET_HTML."
     ),
     "subheader_missing": (
         "SUBHEADER: Ensure a subheading element is present using {{subVar 'Subheader'}} "
@@ -264,8 +260,7 @@ ISSUE_INSTRUCTIONS = {
     "layout_wrong": (
         "LAYOUT: The transformer HTML structure should more closely mirror the tag "
         "hierarchy and nesting in TARGET_HTML. Preserve the customer's original "
-        "layout (wrapper divs, containers, positioning classes). "
-        "All <style> declarations must use !important."
+        "layout (wrapper divs, containers, positioning classes)."
     ),
 }
 
@@ -276,7 +271,6 @@ RULES:
 - Fix ONLY the transformer HTML (the content inside transformerTypeDetails.html backticks).
 - Do NOT change any other part of the JavaScript — the boilerplate must remain identical.
 - All five subVar Handlebars variables remain MANDATORY in the transformer HTML.
-- Every CSS declaration in the <style> block MUST end with !important.
 - Output the COMPLETE revised JavaScript file. No markdown fences, no commentary.
 
 === ISSUES TO FIX ===
@@ -379,6 +373,50 @@ def infer_bucket(selector_text, declarations):
     if "h2" in s or "subheader" in s or "subtitle" in s or " p" in s:
         return "subheader"
     return "banner"
+
+
+STRIP_TAGS = {"script", "noscript", "iframe", "svg", "style", "link", "meta"}
+HIDDEN_ATTRS = {"display: none", "visibility: hidden"}
+
+
+def sanitize_html(raw_html, max_depth=3):
+    """Strip noise from TARGET_HTML before sending to the LLM."""
+    soup = BeautifulSoup(raw_html, "html.parser")
+
+    for tag in soup.find_all(STRIP_TAGS):
+        tag.decompose()
+
+    for comment in soup.find_all(string=lambda t: isinstance(t, Comment)):
+        comment.extract()
+
+    for tag in soup.find_all(True):
+        style = (tag.get("style") or "").lower()
+        if any(h in style for h in HIDDEN_ATTRS):
+            tag.decompose()
+            continue
+        if tag.get("aria-hidden") == "true":
+            tag.decompose()
+            continue
+        attrs = dict(tag.attrs)
+        for attr in attrs:
+            if attr.startswith("data-"):
+                del tag[attr]
+
+    def _prune(el, depth):
+        if depth > max_depth:
+            el.string = el.get_text(separator=" ", strip=True) or ""
+            for child in list(el.children):
+                if child != el.string:
+                    child.extract() if hasattr(child, "extract") else None
+            return
+        for child in list(el.children):
+            if hasattr(child, "name") and child.name:
+                _prune(child, depth + 1)
+
+    for top in soup.find_all(True, recursive=False):
+        _prune(top, 1)
+
+    return str(soup).strip()
 
 
 def pick_style_values(base, declarations, bucket):
@@ -553,9 +591,11 @@ def generate():
     if not target_selector:
         return jsonify(error="targetSelector is required."), 400
 
+    clean_html = sanitize_html(target_html)
+
     prompt = LLM_PROMPT.format(
         page_url=page_url,
-        target_html=target_html,
+        target_html=clean_html,
         target_selector=target_selector,
         extracted_styles=json.dumps(extracted_styles, indent=2),
     )
@@ -619,12 +659,14 @@ def regenerate():
     if feedback_note:
         user_note_section = f"=== ADDITIONAL USER FEEDBACK ===\n{feedback_note}"
 
+    clean_html = sanitize_html(target_html)
+
     prompt = CORRECTION_PROMPT.format(
         issue_list="\n".join(issue_lines),
         user_note=user_note_section,
         page_url=page_url,
         target_selector=target_selector,
-        target_html=target_html,
+        target_html=clean_html,
         extracted_styles=json.dumps(extracted_styles, indent=2),
         previous_output=previous_output,
     )
