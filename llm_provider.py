@@ -29,22 +29,18 @@ class ConnectAPILLM(LLM):
 
         url = (
             self.authenticator.org_url
-            + "/services/data/v62.0/einstein/llm/prompt/generations"
+            + f"/einstein/llm/v1/models/{self.model}/generations"
         )
 
         payload = {
-            "promptTextorId": prompt,
-            "provider": self.provider,
-            "modelParams": {
-                "modelName": self.model,
-                "temperature": self.temperature,
-                "maxTokens": 16384,
-            },
+            "prompt": prompt,
         }
 
         headers = {
             "Authorization": f"Bearer {self.authenticator.access_token}",
             "Content-Type": "application/json",
+            "x-sfdc-app-context": "EinsteinGPT",
+            "x-client-feature-id": "ai-platform-models-connected-app",
         }
 
         response = requests.post(url, json=payload, headers=headers)
@@ -61,14 +57,17 @@ class ConnectAPILLM(LLM):
 
         data = response.json()
 
-        if "generations" in data and len(data["generations"]) > 0:
-            return data["generations"][0].get("text", "")
-
         if "generation" in data:
             gen = data["generation"]
             if isinstance(gen, dict):
                 return gen.get("generatedText", gen.get("text", ""))
             return str(gen)
+
+        if "generations" in data and len(data["generations"]) > 0:
+            first = data["generations"][0]
+            if isinstance(first, dict):
+                return first.get("generatedText", first.get("content", first.get("text", "")))
+            return str(first)
 
         return str(data)
 
