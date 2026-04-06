@@ -183,22 +183,35 @@ Rules for generating the transformer HTML:
    - subheader.fontSize, subheader.fontWeight, subheader.color → subheading
    - cta.backgroundColor, cta.borderRadius, cta.padding, cta.color → CTA link
 
-4. MAP ELEMENTS TO THESE FIVE Handlebars substitution variables (use exactly
-   this syntax — four curly braces on each side):
+4. ALL FIVE Handlebars substitution variables are MANDATORY. Every transformer
+   you generate MUST include all five, no exceptions. Use exactly this syntax
+   (four curly braces on each side):
    - {{{{subVar 'BackgroundImageUrl'}}}} → background-image on the wrapper
    - {{{{subVar 'Header'}}}} → text content of the main heading
-   - {{{{subVar 'Subheader'}}}} → text content of the subheading
-   - {{{{subVar 'CallToActionUrl'}}}} → href of the CTA link
-   - {{{{subVar 'CallToActionText'}}}} → text of the CTA link
+   - {{{{subVar 'Subheader'}}}} → text content of a subheading element
+   - {{{{subVar 'CallToActionUrl'}}}} → href of a CTA link
+   - {{{{subVar 'CallToActionText'}}}} → text of a CTA link
 
-5. If TARGET_HTML has elements that don't map to one of the five variables
-   (e.g. extra decorative divs, navigation overlays), keep them as static
-   markup to preserve visual structure.
+   If TARGET_HTML does not contain a subheading, CTA button, or background
+   image, you MUST STILL add elements for them in your output, styled to
+   match the page's look and feel using EXTRACTED_STYLES values. These are
+   the personalization fields — they must always be present so the marketer
+   can populate them.
 
-6. The wrapper element should have an inline style setting the background
+5. REQUIRED STRUCTURE — your transformer HTML must always contain at minimum:
+   a) An outer wrapper div with the background image via inline style
+   b) A heading element using {{{{subVar 'Header'}}}}
+   c) A subheading element using {{{{subVar 'Subheader'}}}}
+   d) A CTA link: <a href="{{{{subVar 'CallToActionUrl'}}}}">{{{{subVar 'CallToActionText'}}}}</a>
+
+6. If TARGET_HTML has additional elements that don't map to one of the five
+   variables (e.g. extra decorative divs, navigation overlays), keep them as
+   static markup to preserve visual structure.
+
+7. The wrapper element must have an inline style setting the background
    image: style="background: url('{{{{subVar 'BackgroundImageUrl'}}}}') no-repeat center center / cover;"
 
-7. Output only valid HTML for this section (a <style> block followed by the
+8. Output only valid HTML for this section (a <style> block followed by the
    markup). No JavaScript, no markdown, no explanation.
 
 === INPUTS ===
