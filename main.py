@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import time
 import logging
 from urllib.parse import urljoin, urlparse
 
@@ -473,10 +474,18 @@ def generate():
         extracted_styles=json.dumps(extracted_styles, indent=2),
     )
 
-    try:
-        result = llm.invoke(prompt)
-    except Exception as e:
-        return jsonify(error=f"LLM generation failed: {e}"), 502
+    last_err = None
+    result = None
+    for attempt in range(3):
+        try:
+            result = llm.invoke(prompt)
+            break
+        except Exception as e:
+            last_err = e
+            if attempt < 2:
+                time.sleep(2 ** attempt)
+    if result is None:
+        return jsonify(error=f"LLM generation failed: {last_err}"), 502
 
     text = result if isinstance(result, str) else str(result)
     text = text.strip()
