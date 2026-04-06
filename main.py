@@ -22,7 +22,7 @@ authenticator = ConnectedAppAuth(creds_file="creds.json")
 llm = ConnectAPILLM(
     authenticator=authenticator,
     provider="OpenAI",
-    model="gpt-4-32k",
+    model="sfdc_ai__DefaultOpenAIGPT4OmniMini",
     temperature=0.5,
 )
 

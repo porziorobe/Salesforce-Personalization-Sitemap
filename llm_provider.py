@@ -7,7 +7,7 @@ from langchain_core.callbacks.manager import CallbackManagerForLLMRun
 class ConnectAPILLM(LLM):
     authenticator: Any
     provider: str = "OpenAI"
-    model: str = "gpt-4-32k"
+    model: str = "sfdc_ai__DefaultOpenAIGPT4OmniMini"
     temperature: float = 0.5
 
     class Config:
@@ -27,10 +27,7 @@ class ConnectAPILLM(LLM):
         if not self.authenticator.authenticated:
             self.authenticator.authenticate()
 
-        url = (
-            self.authenticator.org_url
-            + f"/einstein/llm/v1/models/{self.model}/generations"
-        )
+        url = f"https://api.salesforce.com/einstein/platform/v1/models/{self.model}/generations"
 
         payload = {
             "prompt": prompt,
