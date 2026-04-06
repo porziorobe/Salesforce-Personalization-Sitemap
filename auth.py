@@ -22,7 +22,6 @@ class ConnectedAppAuth:
             'grant_type': 'client_credentials',
             'client_id': self.client_id,
             'client_secret': self.client_secret,
-            'scope': 'api sfap_api',
         }
         response = requests.post(url, data=payload)
 
