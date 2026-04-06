@@ -80,6 +80,29 @@
           <div class="actions actions-output">
             <button type="button" id="copy-btn" class="btn btn-neutral" disabled>Copy to Clipboard</button>
           </div>
+
+          <div id="feedback-panel" class="feedback-panel" hidden>
+            <h3 class="feedback-heading">Not quite right? Select issues and regenerate.</h3>
+            <div class="feedback-checks">
+              <label class="check-label"><input type="checkbox" name="fb-issue" value="background_image" /> Background image not showing</label>
+              <label class="check-label"><input type="checkbox" name="fb-issue" value="header_style" /> Header styling wrong</label>
+              <label class="check-label"><input type="checkbox" name="fb-issue" value="subheader_missing" /> Subheader missing or wrong</label>
+              <label class="check-label"><input type="checkbox" name="fb-issue" value="cta_missing" /> CTA button missing or wrong</label>
+              <label class="check-label"><input type="checkbox" name="fb-issue" value="cta_url" /> CTA URL missing</label>
+              <label class="check-label"><input type="checkbox" name="fb-issue" value="wrong_classes" /> Wrong CSS class names</label>
+              <label class="check-label"><input type="checkbox" name="fb-issue" value="layout_wrong" /> Layout doesn't match original</label>
+            </div>
+            <div class="field">
+              <label class="label" for="feedback-note">Additional details (optional)</label>
+              <textarea id="feedback-note" class="textarea" rows="3" placeholder="e.g. The CTA should be centered below the subheader..."></textarea>
+            </div>
+            <div class="actions">
+              <button type="button" id="regenerate-btn" class="btn btn-primary" disabled>
+                <span class="btn-label">Regenerate with Feedback</span>
+                <span class="btn-loading" hidden aria-hidden="true">Regenerating...</span>
+              </button>
+            </div>
+          </div>
         </section>
       </main>
 

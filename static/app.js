@@ -11,6 +11,11 @@
   var errorBanner = document.getElementById('error-banner');
   var extractingIndicator = document.getElementById('extracting-indicator');
 
+  var feedbackPanel = document.getElementById('feedback-panel');
+  var feedbackNote = document.getElementById('feedback-note');
+  var regenerateBtn = document.getElementById('regenerate-btn');
+  var issueCheckboxes = document.querySelectorAll('input[name="fb-issue"]');
+
   var extractedStyles = null;
   var stylesReady = false;
 
@@ -39,6 +44,30 @@
     generateBtn.disabled = !stylesReady;
   }
 
+  function showFeedbackPanel() {
+    feedbackPanel.hidden = false;
+    updateRegenerateEnabled();
+  }
+
+  function hideFeedbackPanel() {
+    feedbackPanel.hidden = true;
+    feedbackNote.value = '';
+    issueCheckboxes.forEach(function (cb) { cb.checked = false; });
+    regenerateBtn.disabled = true;
+  }
+
+  function getCheckedIssues() {
+    var issues = [];
+    issueCheckboxes.forEach(function (cb) {
+      if (cb.checked) issues.push(cb.value);
+    });
+    return issues;
+  }
+
+  function updateRegenerateEnabled() {
+    regenerateBtn.disabled = getCheckedIssues().length === 0;
+  }
+
   async function extractStyles(pageUrl, targetSelector) {
     extractingIndicator.hidden = false;
     stylesReady = false;
@@ -65,6 +94,7 @@
     clearError();
     outputArea.value = '';
     copyBtn.disabled = true;
+    hideFeedbackPanel();
     extractedStyles = null;
     stylesReady = false;
     updateGenerateEnabled();
@@ -143,6 +173,7 @@
       }
       outputArea.value = data.sitemap;
       copyBtn.disabled = false;
+      showFeedbackPanel();
     } catch (err) {
       showError('Network error during sitemap generation. Try again.');
     } finally {
@@ -150,8 +181,56 @@
     }
   }
 
+  async function regenerateWithFeedback() {
+    clearError();
+    var issues = getCheckedIssues();
+    if (issues.length === 0) {
+      showError('Select at least one issue to fix.');
+      return;
+    }
+
+    setBtnLoading(regenerateBtn, true);
+    try {
+      var response = await fetch('/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pageUrl: pageUrlInput.value.trim(),
+          targetSelector: targetSelectorInput.value.trim(),
+          targetHtml: targetHtmlInput.value,
+          extractedStyles: extractedStyles,
+          previousOutput: outputArea.value,
+          issues: issues,
+          feedbackNote: feedbackNote.value.trim(),
+        }),
+      });
+      var data = await response.json().catch(function () { return {}; });
+      if (!response.ok) {
+        showError(data.error || 'Regeneration failed (' + response.status + ').');
+        return;
+      }
+      if (!data.sitemap) {
+        showError('Regeneration returned empty output.');
+        return;
+      }
+      outputArea.value = data.sitemap;
+      copyBtn.disabled = false;
+      hideFeedbackPanel();
+      showFeedbackPanel();
+    } catch (err) {
+      showError('Network error during regeneration. Try again.');
+    } finally {
+      setBtnLoading(regenerateBtn, false);
+    }
+  }
+
   detectBtn.addEventListener('click', detectHero);
   generateBtn.addEventListener('click', generateSitemap);
+  regenerateBtn.addEventListener('click', regenerateWithFeedback);
+
+  issueCheckboxes.forEach(function (cb) {
+    cb.addEventListener('change', updateRegenerateEnabled);
+  });
 
   manualToggle.addEventListener('change', function () {
     setEditable(this.checked);

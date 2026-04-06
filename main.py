@@ -232,6 +232,72 @@ Output ONLY the complete JavaScript file (Part 1 boilerplate with Part 2
 transformer HTML inserted). No markdown fences, no commentary."""
 
 
+ISSUE_INSTRUCTIONS = {
+    "background_image": (
+        "BACKGROUND IMAGE: The outermost wrapper div MUST have an inline style: "
+        "style=\"background: url('{{subVar 'BackgroundImageUrl'}}') no-repeat center center / cover;\". "
+        "Do NOT set the background via the <style> block or use a CSS gradient."
+    ),
+    "header_style": (
+        "HEADER: Revise the heading element to better match the customer's original "
+        "styling. Use EXTRACTED_STYLES header values (fontSize, fontWeight, color) and "
+        "the customer's actual class names from TARGET_HTML."
+    ),
+    "subheader_missing": (
+        "SUBHEADER: Ensure a subheading element is present using {{subVar 'Subheader'}} "
+        "as its text content. Style it using EXTRACTED_STYLES subheader values."
+    ),
+    "cta_missing": (
+        "CTA BUTTON: Ensure a visible CTA link is present: "
+        "<a href=\"{{subVar 'CallToActionUrl'}}\">{{subVar 'CallToActionText'}}</a>. "
+        "Style it using EXTRACTED_STYLES cta values (backgroundColor, borderRadius, padding, color)."
+    ),
+    "cta_url": (
+        "CTA URL: The CTA link href must use {{subVar 'CallToActionUrl'}}. "
+        "Make sure the <a> element has this as its href attribute."
+    ),
+    "wrong_classes": (
+        "CLASS NAMES: Use the customer's actual CSS class names from TARGET_HTML, "
+        "not generic names like sfdcep-banner. Inspect TARGET_HTML and replicate "
+        "the real class names in your output."
+    ),
+    "layout_wrong": (
+        "LAYOUT: The transformer HTML structure should more closely mirror the tag "
+        "hierarchy and nesting in TARGET_HTML. Preserve the customer's original "
+        "layout (wrapper divs, containers, positioning classes)."
+    ),
+}
+
+CORRECTION_PROMPT = """You are revising a Salesforce Personalization sitemap that you previously generated.
+The user has flagged specific issues with the transformer HTML inside transformerTypeDetails.
+
+RULES:
+- Fix ONLY the transformer HTML (the content inside transformerTypeDetails.html backticks).
+- Do NOT change any other part of the JavaScript — the boilerplate must remain identical.
+- All five subVar Handlebars variables remain MANDATORY in the transformer HTML.
+- Output the COMPLETE revised JavaScript file. No markdown fences, no commentary.
+
+=== ISSUES TO FIX ===
+{issue_list}
+
+{user_note}
+
+=== ORIGINAL INPUTS ===
+- PAGE_URL: {page_url}
+- TARGET_SELECTOR: {target_selector}
+- TARGET_HTML:
+{target_html}
+- EXTRACTED_STYLES:
+{extracted_styles}
+
+=== YOUR PREVIOUS OUTPUT ===
+{previous_output}
+
+=== OUTPUT ===
+Output the COMPLETE revised JavaScript file with the transformer HTML fixed.
+No markdown fences, no commentary."""
+
+
 def fetch_page(url):
     resp = requests.get(url, headers={"User-Agent": BROWSER_UA, "Accept": "text/html"}, timeout=25, allow_redirects=True)
     resp.raise_for_status()
@@ -506,6 +572,12 @@ def generate():
         return jsonify(error=f"LLM generation failed: {last_err}"), 502
 
     text = result if isinstance(result, str) else str(result)
+    text = strip_markdown_fences(text)
+
+    return jsonify(sitemap=text)
+
+
+def strip_markdown_fences(text):
     text = text.strip()
     if text.startswith("```"):
         first_nl = text.index("\n") if "\n" in text else len(text)
@@ -514,6 +586,62 @@ def generate():
         if last_fence != -1:
             text = text[:last_fence]
         text = text.strip()
+    return text
+
+
+@app.route("/regenerate", methods=["POST"])
+def regenerate():
+    data = request.get_json(silent=True) or {}
+    page_url = (data.get("pageUrl") or "").strip()
+    target_html = data.get("targetHtml") or ""
+    target_selector = (data.get("targetSelector") or "").strip()
+    extracted_styles = data.get("extractedStyles") or DEFAULT_STYLES
+    previous_output = data.get("previousOutput") or ""
+    issues = data.get("issues") or []
+    feedback_note = (data.get("feedbackNote") or "").strip()
+
+    if not previous_output.strip():
+        return jsonify(error="previousOutput is required."), 400
+    if not issues:
+        return jsonify(error="Select at least one issue to fix."), 400
+
+    issue_lines = []
+    for key in issues:
+        instruction = ISSUE_INSTRUCTIONS.get(key)
+        if instruction:
+            issue_lines.append(f"- {instruction}")
+    if not issue_lines:
+        return jsonify(error="No recognized issues selected."), 400
+
+    user_note_section = ""
+    if feedback_note:
+        user_note_section = f"=== ADDITIONAL USER FEEDBACK ===\n{feedback_note}"
+
+    prompt = CORRECTION_PROMPT.format(
+        issue_list="\n".join(issue_lines),
+        user_note=user_note_section,
+        page_url=page_url,
+        target_selector=target_selector,
+        target_html=target_html,
+        extracted_styles=json.dumps(extracted_styles, indent=2),
+        previous_output=previous_output,
+    )
+
+    last_err = None
+    result = None
+    for attempt in range(3):
+        try:
+            result = llm.invoke(prompt)
+            break
+        except Exception as e:
+            last_err = e
+            if attempt < 2:
+                time.sleep(2 ** attempt)
+    if result is None:
+        return jsonify(error=f"LLM regeneration failed: {last_err}"), 502
+
+    text = result if isinstance(result, str) else str(result)
+    text = strip_markdown_fences(text)
 
     return jsonify(sitemap=text)
 
