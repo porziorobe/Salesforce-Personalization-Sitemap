@@ -49,19 +49,19 @@ DEFAULT_STYLES = {
 }
 
 LLM_PROMPT = """You are an expert Salesforce Personalization (Interaction Studio) developer.
-Your job is to generate a ready-to-use sitemap JavaScript file based on inputs
-from a customer's website.
+Your job is to generate a ready-to-use sitemap JavaScript file.
 
 You will receive four inputs:
-1. PAGE_URL - The URL of the customer's webpage
-2. TARGET_HTML - The raw HTML of the element to replace with personalized content
+1. PAGE_URL  - The customer's webpage URL
+2. TARGET_HTML - The raw HTML of the hero element to personalize
 3. TARGET_SELECTOR - The CSS selector for that element
-4. EXTRACTED_STYLES - A structured object of CSS values from the customer's page
+4. EXTRACTED_STYLES - CSS values extracted from the customer's page
 
-Reference Implementation:
-Use the structure below as your template. Do not deviate from the overall
-pattern, ordering, or API method signatures. Only change: the transformer HTML
-(to match customer classes/styles), [CustomerName] values, and TARGET_SELECTOR.
+=== TASK ===
+Output a single JavaScript file. It has two parts:
+
+PART 1 — FIXED BOILERPLATE (output verbatim, substituting only CUSTOMER_NAME
+and TARGET_SELECTOR as noted):
 
 //SimpleSitemap
 SalesforceInteractions.setLoggingLevel(100);
@@ -82,7 +82,7 @@ document.addEventListener(
 document.querySelector('html').style.fontSize = '14px';
 SalesforceInteractions.Personalization.Config.initialize({{
     additionalTransformers: [{{
-        name: "[CustomerName]_Homepage_Hero_Banner",
+        name: "CUSTOMER_NAME_Homepage_Hero_Banner",
         transformerType: "Handlebars",
         lastModifiedDate: new Date().getTime() - (1000 * 60 * 5),
         substitutionDefinitions: {{
@@ -93,42 +93,7 @@ SalesforceInteractions.Personalization.Config.initialize({{
             CallToActionText: {{ defaultValue: '[attributes].[CallToActionText]' }}
         }},
         transformerTypeDetails: {{
-            html: `
-                <style>
-                    .sfdcep-banner {{
-                        margin: 0px auto; width: 100%; min-height: 600px;
-                        display: flex; flex-flow: column wrap; justify-content: center;
-                        font-family: [EXTRACTED_FONT_FAMILY];
-                        background-color: [EXTRACTED_BANNER_BG];
-                    }}
-                    .sfdcep-banner-header {{
-                        font-size: [EXTRACTED_HEADER_SIZE]; padding-bottom: 40px;
-                        font-weight: [EXTRACTED_HEADER_WEIGHT];
-                        color: [EXTRACTED_HEADER_COLOR]; text-align: center;
-                    }}
-                    .sfdcep-banner-subheader {{
-                        font-size: [EXTRACTED_SUBHEADER_SIZE];
-                        font-weight: [EXTRACTED_SUBHEADER_WEIGHT];
-                        color: [EXTRACTED_SUBHEADER_COLOR];
-                        text-align: center; padding-bottom: 40px;
-                    }}
-                    .sfdcep-banner-cta {{ text-align: center; }}
-                    .sfdcep-banner-cta a {{
-                        padding: [EXTRACTED_CTA_PADDING]; display: inline-block;
-                        background-color: [EXTRACTED_CTA_BG];
-                        border-radius: [EXTRACTED_CTA_RADIUS];
-                        color: [EXTRACTED_CTA_COLOR];
-                        text-decoration: none; font-weight: 400; font-size: 18px;
-                    }}
-                </style>
-                <div class="sfdcep-banner [EXTRACTED_WRAPPER_CLASSES]"
-                    style="background: url('{{{{subVar 'BackgroundImageUrl'}}}}') no-repeat center center;">
-                    <div class="sfdcep-banner-header">{{{{subVar 'Header'}}}}</div>
-                    <div class="sfdcep-banner-subheader">{{{{subVar 'Subheader'}}}}</div>
-                    <div class="sfdcep-banner-cta">
-                        <a href="{{{{subVar 'CallToActionUrl'}}}}">{{{{subVar 'CallToActionText'}}}}</a>
-                    </div>
-                </div>`
+            html: `GENERATED_TRANSFORMER_HTML`
         }}
     }}]
 }});
@@ -171,7 +136,7 @@ SalesforceInteractions.init().then(() => {{
             onActionEvent: (event) => {{
                 if (event.interaction.name == "Homepage") {{
                     SalesforceInteractions.Personalization
-                        .fetch(["[CustomerName]_Homepage_Hero_Banner"])
+                        .fetch(["CUSTOMER_NAME_Homepage_Hero_Banner"])
                         .then(r => renderBannerHeader(r.personalizations[0].attributes))
                 }}
                 return event;
@@ -183,19 +148,69 @@ SalesforceInteractions.init().then(() => {{
     SalesforceInteractions.initSitemap(config);
 }});
 
-Customization Instructions:
-- Replace [CustomerName] with the value derived from PAGE_URL
-- Use EXTRACTED_STYLES values to populate all [EXTRACTED_*] placeholders
-- Reuse CSS class names from TARGET_HTML on the wrapper div where appropriate
-- Replace TARGET_SELECTOR with the value from the input
-- Personalization.fetch campaign name and transformer name must be identical strings
-- Output only valid JavaScript — no markdown, no code fences, no explanation
+^^^ END OF FIXED BOILERPLATE ^^^
 
-Inputs:
+The ONLY things you change in the boilerplate above are:
+- Replace every CUSTOMER_NAME with the customer name derived from PAGE_URL
+  (e.g. https://www.ahead.com → Ahead)
+- Replace TARGET_SELECTOR with the actual CSS selector from the input
+- Replace GENERATED_TRANSFORMER_HTML with the HTML you generate in Part 2
+
+Do NOT add, remove, reorder, or modify any other line in the boilerplate.
+
+=== PART 2 — GENERATE THE TRANSFORMER HTML ===
+
+This is the ONLY creative part. You must generate the HTML string that replaces
+GENERATED_TRANSFORMER_HTML in the boilerplate above.
+
+Rules for generating the transformer HTML:
+
+1. PRESERVE THE CUSTOMER'S MARKUP STRUCTURE.
+   Analyze TARGET_HTML carefully. Reproduce its tag hierarchy, nesting, and
+   class names as closely as possible. The personalized banner should look
+   like a drop-in replacement for the original element.
+
+2. USE THE CUSTOMER'S ACTUAL CLASS NAMES — not generic names like
+   "sfdcep-banner" or "sfdcep-banner-header". If the customer's hero uses
+   classes like "hero-carousel", "slide-content", "hero-title", use those
+   exact class names in your output.
+
+3. BUILD A <style> BLOCK targeting those real class names, using values from
+   EXTRACTED_STYLES:
+   - banner.backgroundColor, banner.fontFamily → outer wrapper
+   - header.fontSize, header.fontWeight, header.color → heading element
+   - subheader.fontSize, subheader.fontWeight, subheader.color → subheading
+   - cta.backgroundColor, cta.borderRadius, cta.padding, cta.color → CTA link
+
+4. MAP ELEMENTS TO THESE FIVE Handlebars substitution variables (use exactly
+   this syntax — four curly braces on each side):
+   - {{{{subVar 'BackgroundImageUrl'}}}} → background-image on the wrapper
+   - {{{{subVar 'Header'}}}} → text content of the main heading
+   - {{{{subVar 'Subheader'}}}} → text content of the subheading
+   - {{{{subVar 'CallToActionUrl'}}}} → href of the CTA link
+   - {{{{subVar 'CallToActionText'}}}} → text of the CTA link
+
+5. If TARGET_HTML has elements that don't map to one of the five variables
+   (e.g. extra decorative divs, navigation overlays), keep them as static
+   markup to preserve visual structure.
+
+6. The wrapper element should have an inline style setting the background
+   image: style="background: url('{{{{subVar 'BackgroundImageUrl'}}}}') no-repeat center center / cover;"
+
+7. Output only valid HTML for this section (a <style> block followed by the
+   markup). No JavaScript, no markdown, no explanation.
+
+=== INPUTS ===
 - PAGE_URL: {page_url}
-- TARGET_HTML: {target_html}
 - TARGET_SELECTOR: {target_selector}
-- EXTRACTED_STYLES: {extracted_styles}"""
+- TARGET_HTML:
+{target_html}
+- EXTRACTED_STYLES:
+{extracted_styles}
+
+=== OUTPUT ===
+Output ONLY the complete JavaScript file (Part 1 boilerplate with Part 2
+transformer HTML inserted). No markdown fences, no commentary."""
 
 
 def fetch_page(url):
