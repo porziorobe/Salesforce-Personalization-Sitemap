@@ -199,7 +199,7 @@ Rules for generating the transformer HTML:
    can populate them.
 
 5. REQUIRED STRUCTURE — your transformer HTML must always contain at minimum:
-   a) An outer wrapper div with the background image via inline style
+   a) An outer wrapper div with BackgroundImageUrl as an INLINE STYLE (see rule 7)
    b) A heading element using {{{{subVar 'Header'}}}}
    c) A subheading element using {{{{subVar 'Subheader'}}}}
    d) A CTA link: <a href="{{{{subVar 'CallToActionUrl'}}}}">{{{{subVar 'CallToActionText'}}}}</a>
@@ -208,8 +208,13 @@ Rules for generating the transformer HTML:
    variables (e.g. extra decorative divs, navigation overlays), keep them as
    static markup to preserve visual structure.
 
-7. The wrapper element must have an inline style setting the background
-   image: style="background: url('{{{{subVar 'BackgroundImageUrl'}}}}') no-repeat center center / cover;"
+7. BACKGROUND IMAGE — CRITICAL:
+   The outermost wrapper element MUST have this exact inline style attribute:
+   style="background: url('{{{{subVar 'BackgroundImageUrl'}}}}') no-repeat center center / cover;"
+   Do NOT set the background via the <style> block. Do NOT use a CSS gradient
+   or any other background value instead. The BackgroundImageUrl subVar must
+   appear as an inline style on the wrapper div so the marketer can provide
+   an image URL through the personalization UI.
 
 8. Output only valid HTML for this section (a <style> block followed by the
    markup). No JavaScript, no markdown, no explanation.
