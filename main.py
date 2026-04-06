@@ -202,7 +202,7 @@ Rules:
    TARGET_HTML handle the layout naturally.
    CRITICAL: Every CSS declaration MUST end with !important to override the
    customer's global stylesheets. Example:
-   .hero-header { font-size: 32px !important; font-weight: 600 !important; color: #DDD !important; }
+   .hero-header {{ font-size: 32px !important; font-weight: 600 !important; color: #DDD !important; }}
 
 5. ALL FIVE Handlebars substitution variables are MANDATORY — no exceptions.
    Use exactly this syntax (four curly braces on each side):
