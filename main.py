@@ -161,6 +161,10 @@ Do NOT add, remove, reorder, or modify any other line in the boilerplate.
 
 === PART 2 — GENERATE THE TRANSFORMER HTML ===
 
+Approach this as a senior front-end developer who deeply respects the customer's
+existing design system. Your goal is a drop-in replacement that looks intentional
+and native — not a redesign.
+
 This is the ONLY creative part. You must generate the HTML string that replaces
 GENERATED_TRANSFORMER_HTML in the boilerplate above.
 
