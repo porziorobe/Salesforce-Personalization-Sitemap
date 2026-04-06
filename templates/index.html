@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Personalization Sitemap Generator</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/static/style.css" />
   </head>
   <body>
     <div class="app">
@@ -57,7 +57,10 @@
                 </label>
               </div>
               <div class="actions">
-                <button type="button" id="generate-btn" class="btn btn-primary">Generate Sitemap</button>
+                <button type="button" id="generate-btn" class="btn btn-primary" disabled>
+                  <span class="btn-label">Generate Sitemap</span>
+                  <span class="btn-loading" hidden aria-hidden="true">Generating...</span>
+                </button>
               </div>
             </div>
           </form>
@@ -81,10 +84,10 @@
       </main>
 
       <footer class="app-footer" role="contentinfo">
-        <p>Designed for Salesforce sales engineers. Deterministic output with CSS extraction and no LLM dependency.</p>
+        <p>Designed for Salesforce sales engineers. Powered by Einstein LLM via Salesforce Connected App.</p>
       </footer>
     </div>
 
-    <script src="/app.js"></script>
+    <script src="/static/app.js"></script>
   </body>
 </html>
