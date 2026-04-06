@@ -47,16 +47,6 @@ DEFAULT_STYLES = {
         "padding": "10px 20px",
         "color": "#DDDDDD",
     },
-    "wrapper": {
-        "width": "100%",
-        "minHeight": "500px",
-        "padding": "0 5%",
-        "display": "flex",
-        "flexFlow": "column wrap",
-        "justifyContent": "center",
-        "alignItems": "flex-start",
-        "textAlign": "left",
-    },
 }
 
 LLM_PROMPT = """You are an expert Salesforce Personalization (Interaction Studio) developer.
@@ -171,71 +161,56 @@ Do NOT add, remove, reorder, or modify any other line in the boilerplate.
 
 === PART 2 — GENERATE THE TRANSFORMER HTML ===
 
+Approach this as a senior front-end developer who deeply respects the customer's
+existing design system. Your goal is a drop-in replacement that looks intentional
+and native — not a redesign.
+
 This is the ONLY creative part. You must generate the HTML string that replaces
 GENERATED_TRANSFORMER_HTML in the boilerplate above.
 
-STRATEGY: customer classes on the OUTER wrapper, clean self-contained layout INSIDE.
-Do NOT try to reproduce the full nested DOM tree from TARGET_HTML — complex carousel,
-slider, and positioning markup will break without the site's full CSS. Instead, use
-the customer's class names only on the outermost wrapper div (so the content zone
-selector matches and the banner blends in), then use a simple, reliable inner layout
-for the personalization content.
+STRATEGY: Reproduce the customer's tag hierarchy and class names from TARGET_HTML,
+but make it self-contained by providing all necessary styles in a <style> block.
 
 Rules:
 
-1. OUTER WRAPPER — Use the customer's actual class names from TARGET_HTML on
-   the outermost div. For example, if TARGET_HTML has
-   <div class="hero relative has-dark-background">, your wrapper should be:
-   <div class="hero relative has-dark-background" style="background: ...">
+1. REPRODUCE THE CUSTOMER'S MARKUP STRUCTURE.
+   Analyze TARGET_HTML and mirror its tag hierarchy, nesting, and class names.
+   The personalized banner should look like a drop-in replacement for the
+   original element. Use the customer's actual class names — not generic names.
 
-2. BACKGROUND IMAGE — The outermost wrapper MUST have this exact inline style:
-   style="background: url('{{{{subVar 'BackgroundImageUrl'}}}}') no-repeat center center / cover;"
-   Do NOT set the background via the <style> block. Do NOT use a CSS gradient.
+2. STRIP POSITIONING UTILITY CLASSES that depend on external CSS frameworks.
+   Remove classes like: absolute, relative, fixed, top-*, bottom-*, left-*,
+   right-*, translate-*, transform, z-*, inset-*, position-related Tailwind
+   utilities. These break without the site's full CSS.
 
-3. INNER LAYOUT — Inside the wrapper, use a simple, self-contained structure
-   with scoped class names (prefixed with "sfdcep-" to avoid collisions with
-   the customer's CSS). The inner layout should reliably center the content
-   vertically and horizontally. Example structure:
-     <div class="sfdcep-content">
-       <h1 class="sfdcep-header">...</h1>
-       <p class="sfdcep-subheader">...</p>
-       <div class="sfdcep-cta"><a ...>...</a></div>
-     </div>
+3. OUTERMOST WRAPPER STYLING — The outermost element MUST have:
+   a) The customer's semantic class names (hero, banner, etc. — NOT positioning
+      utility classes)
+   b) This exact inline style for the background image:
+      style="background: url('{{{{subVar 'BackgroundImageUrl'}}}}') no-repeat center center / cover;"
+      Do NOT set the background via <style>. Do NOT use a CSS gradient.
 
-4. STYLE BLOCK — Build a <style> block using EXTRACTED_STYLES values.
-   Do NOT hardcode dimensions or guess layout values — use exactly what
-   EXTRACTED_STYLES provides:
-
-   a) Customer's wrapper class — use EXTRACTED_STYLES.wrapper values:
-      width, minHeight (as min-height), padding, display, flexFlow (as flex-flow),
-      justifyContent (as justify-content), alignItems (as align-items),
-      textAlign (as text-align).
-      Also apply font-family from EXTRACTED_STYLES.banner.fontFamily.
-
-   b) .sfdcep-content — width: 100%; max-width: 960px; padding: 2rem;
-
-   c) .sfdcep-header — use EXTRACTED_STYLES.header values (fontSize,
-      fontWeight, color). Also add padding-bottom: 20px.
-
-   d) .sfdcep-subheader — use EXTRACTED_STYLES.subheader values (fontSize,
-      fontWeight, color). Also add padding-bottom: 30px.
-
-   e) .sfdcep-cta a — use EXTRACTED_STYLES.cta values (backgroundColor,
-      borderRadius, padding, color). Also add text-decoration: none and
-      display: inline-block.
-
-   Keep styles minimal and self-contained. Do not rely on the customer's
-   stylesheets being loaded.
+4. STYLE BLOCK — Build a <style> block that provides cosmetic styles the
+   transformer needs to look correct without the customer's stylesheets:
+   - Use EXTRACTED_STYLES.banner.fontFamily on the outermost wrapper
+   - Use EXTRACTED_STYLES.header values (fontSize, fontWeight, color) on the heading
+   - Use EXTRACTED_STYLES.subheader values (fontSize, fontWeight, color) on the subheading
+   - Use EXTRACTED_STYLES.cta values (backgroundColor, borderRadius, padding, color)
+     on the CTA link, plus text-decoration: none and display: inline-block
+   Target the customer's actual class names in the <style> block.
+   Do NOT override layout/dimensional properties — let the markup structure from
+   TARGET_HTML handle the layout naturally.
 
 5. ALL FIVE Handlebars substitution variables are MANDATORY — no exceptions.
    Use exactly this syntax (four curly braces on each side):
-   - {{{{subVar 'BackgroundImageUrl'}}}} → inline style on the wrapper (rule 2)
-   - {{{{subVar 'Header'}}}} → text content of the heading
-   - {{{{subVar 'Subheader'}}}} → text content of the subheading
+   - {{{{subVar 'BackgroundImageUrl'}}}} → inline style on the wrapper (rule 3)
+   - {{{{subVar 'Header'}}}} → text content of the main heading
+   - {{{{subVar 'Subheader'}}}} → text content of a subheading element
    - {{{{subVar 'CallToActionUrl'}}}} → href of the CTA link
    - {{{{subVar 'CallToActionText'}}}} → text of the CTA link
-   Every one of these must appear in the output. They are the personalization
-   fields the marketer populates — omitting any one breaks the experience.
+   If TARGET_HTML lacks a subheading or CTA, add elements for them styled to
+   match the page using EXTRACTED_STYLES values. Every variable must appear —
+   they are the personalization fields the marketer populates.
 
 6. Output only valid HTML (a <style> block followed by markup).
    No JavaScript, no markdown fences, no explanation.
@@ -400,25 +375,6 @@ def infer_bucket(selector_text, declarations):
     return "banner"
 
 
-def pick_wrapper_values(base, declarations):
-    prop_map = {
-        "width": "width",
-        "min-height": "minHeight",
-        "padding": "padding",
-        "display": "display",
-        "flex-flow": "flexFlow",
-        "flex-direction": "flexFlow",
-        "justify-content": "justifyContent",
-        "align-items": "alignItems",
-        "text-align": "textAlign",
-    }
-    for css_prop, key in prop_map.items():
-        if css_prop in declarations:
-            base["wrapper"][key] = declarations[css_prop]
-    if "height" in declarations and base["wrapper"]["minHeight"] == DEFAULT_STYLES["wrapper"]["minHeight"]:
-        base["wrapper"]["minHeight"] = declarations["height"]
-
-
 def pick_style_values(base, declarations, bucket):
     if bucket == "banner":
         if "background-color" in declarations:
@@ -427,7 +383,6 @@ def pick_style_values(base, declarations, bucket):
             base["banner"]["backgroundColor"] = declarations["background"]
         if "font-family" in declarations:
             base["banner"]["fontFamily"] = declarations["font-family"]
-        pick_wrapper_values(base, declarations)
     elif bucket == "header":
         if "color" in declarations:
             base["header"]["color"] = declarations["color"]
