@@ -161,67 +161,60 @@ Do NOT add, remove, reorder, or modify any other line in the boilerplate.
 
 === PART 2 — GENERATE THE TRANSFORMER HTML ===
 
-Approach this as a senior front-end developer who deeply respects the customer's
-existing design system. Your goal is a drop-in replacement that looks intentional
-and native — not a redesign.
-
 This is the ONLY creative part. You must generate the HTML string that replaces
 GENERATED_TRANSFORMER_HTML in the boilerplate above.
 
-Rules for generating the transformer HTML:
+STRATEGY: customer classes on the OUTER wrapper, clean self-contained layout INSIDE.
+Do NOT try to reproduce the full nested DOM tree from TARGET_HTML — complex carousel,
+slider, and positioning markup will break without the site's full CSS. Instead, use
+the customer's class names only on the outermost wrapper div (so the content zone
+selector matches and the banner blends in), then use a simple, reliable inner layout
+for the personalization content.
 
-1. PRESERVE THE CUSTOMER'S MARKUP STRUCTURE.
-   Analyze TARGET_HTML carefully. Reproduce its tag hierarchy, nesting, and
-   class names as closely as possible. The personalized banner should look
-   like a drop-in replacement for the original element.
+Rules:
 
-2. USE THE CUSTOMER'S ACTUAL CLASS NAMES — not generic names like
-   "sfdcep-banner" or "sfdcep-banner-header". If the customer's hero uses
-   classes like "hero-carousel", "slide-content", "hero-title", use those
-   exact class names in your output.
+1. OUTER WRAPPER — Use the customer's actual class names from TARGET_HTML on
+   the outermost div. For example, if TARGET_HTML has
+   <div class="hero relative has-dark-background">, your wrapper should be:
+   <div class="hero relative has-dark-background" style="background: ...">
 
-3. BUILD A <style> BLOCK targeting those real class names, using values from
-   EXTRACTED_STYLES:
-   - banner.backgroundColor, banner.fontFamily → outer wrapper
-   - header.fontSize, header.fontWeight, header.color → heading element
-   - subheader.fontSize, subheader.fontWeight, subheader.color → subheading
-   - cta.backgroundColor, cta.borderRadius, cta.padding, cta.color → CTA link
-
-4. ALL FIVE Handlebars substitution variables are MANDATORY. Every transformer
-   you generate MUST include all five, no exceptions. Use exactly this syntax
-   (four curly braces on each side):
-   - {{{{subVar 'BackgroundImageUrl'}}}} → background-image on the wrapper
-   - {{{{subVar 'Header'}}}} → text content of the main heading
-   - {{{{subVar 'Subheader'}}}} → text content of a subheading element
-   - {{{{subVar 'CallToActionUrl'}}}} → href of a CTA link
-   - {{{{subVar 'CallToActionText'}}}} → text of a CTA link
-
-   If TARGET_HTML does not contain a subheading, CTA button, or background
-   image, you MUST STILL add elements for them in your output, styled to
-   match the page's look and feel using EXTRACTED_STYLES values. These are
-   the personalization fields — they must always be present so the marketer
-   can populate them.
-
-5. REQUIRED STRUCTURE — your transformer HTML must always contain at minimum:
-   a) An outer wrapper div with BackgroundImageUrl as an INLINE STYLE (see rule 7)
-   b) A heading element using {{{{subVar 'Header'}}}}
-   c) A subheading element using {{{{subVar 'Subheader'}}}}
-   d) A CTA link: <a href="{{{{subVar 'CallToActionUrl'}}}}">{{{{subVar 'CallToActionText'}}}}</a>
-
-6. If TARGET_HTML has additional elements that don't map to one of the five
-   variables (e.g. extra decorative divs, navigation overlays), keep them as
-   static markup to preserve visual structure.
-
-7. BACKGROUND IMAGE — CRITICAL:
-   The outermost wrapper element MUST have this exact inline style attribute:
+2. BACKGROUND IMAGE — The outermost wrapper MUST have this exact inline style:
    style="background: url('{{{{subVar 'BackgroundImageUrl'}}}}') no-repeat center center / cover;"
-   Do NOT set the background via the <style> block. Do NOT use a CSS gradient
-   or any other background value instead. The BackgroundImageUrl subVar must
-   appear as an inline style on the wrapper div so the marketer can provide
-   an image URL through the personalization UI.
+   Do NOT set the background via the <style> block. Do NOT use a CSS gradient.
 
-8. Output only valid HTML for this section (a <style> block followed by the
-   markup). No JavaScript, no markdown, no explanation.
+3. INNER LAYOUT — Inside the wrapper, use a simple, self-contained structure
+   with scoped class names (prefixed with "sfdcep-" to avoid collisions with
+   the customer's CSS). The inner layout should reliably center the content
+   vertically and horizontally. Example structure:
+     <div class="sfdcep-content">
+       <h1 class="sfdcep-header">...</h1>
+       <p class="sfdcep-subheader">...</p>
+       <div class="sfdcep-cta"><a ...>...</a></div>
+     </div>
+
+4. STYLE BLOCK — Build a <style> block that:
+   - Styles the customer's wrapper class for layout (min-height, display flex,
+     centering) and font-family from EXTRACTED_STYLES banner.fontFamily
+   - Styles .sfdcep-header using EXTRACTED_STYLES header values (fontSize,
+     fontWeight, color)
+   - Styles .sfdcep-subheader using EXTRACTED_STYLES subheader values
+   - Styles .sfdcep-cta a using EXTRACTED_STYLES cta values (backgroundColor,
+     borderRadius, padding, color)
+   Keep styles minimal and self-contained. Do not rely on the customer's
+   stylesheets being loaded.
+
+5. ALL FIVE Handlebars substitution variables are MANDATORY — no exceptions.
+   Use exactly this syntax (four curly braces on each side):
+   - {{{{subVar 'BackgroundImageUrl'}}}} → inline style on the wrapper (rule 2)
+   - {{{{subVar 'Header'}}}} → text content of the heading
+   - {{{{subVar 'Subheader'}}}} → text content of the subheading
+   - {{{{subVar 'CallToActionUrl'}}}} → href of the CTA link
+   - {{{{subVar 'CallToActionText'}}}} → text of the CTA link
+   Every one of these must appear in the output. They are the personalization
+   fields the marketer populates — omitting any one breaks the experience.
+
+6. Output only valid HTML (a <style> block followed by markup).
+   No JavaScript, no markdown fences, no explanation.
 
 === INPUTS ===
 - PAGE_URL: {page_url}
