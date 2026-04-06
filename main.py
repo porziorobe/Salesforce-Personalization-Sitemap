@@ -376,41 +376,42 @@ def infer_bucket(selector_text, declarations):
 
 
 STRIP_TAGS = {"script", "noscript", "iframe", "svg", "style", "link", "meta"}
-HIDDEN_ATTRS = {"display: none", "visibility: hidden"}
 
 
 def sanitize_html(raw_html, max_depth=3):
     """Strip noise from TARGET_HTML before sending to the LLM."""
     soup = BeautifulSoup(raw_html, "html.parser")
 
-    for tag in soup.find_all(STRIP_TAGS):
+    for tag in list(soup.find_all(STRIP_TAGS)):
         tag.decompose()
 
-    for comment in soup.find_all(string=lambda t: isinstance(t, Comment)):
+    for comment in list(soup.find_all(string=lambda t: isinstance(t, Comment))):
         comment.extract()
 
-    for tag in soup.find_all(True):
+    for tag in list(soup.find_all(True)):
+        if not tag.parent:
+            continue
         style = (tag.get("style") or "").lower()
-        if any(h in style for h in HIDDEN_ATTRS):
+        if "display: none" in style or "visibility: hidden" in style:
             tag.decompose()
             continue
         if tag.get("aria-hidden") == "true":
             tag.decompose()
             continue
-        attrs = dict(tag.attrs)
-        for attr in attrs:
+        for attr in list(tag.attrs):
             if attr.startswith("data-"):
                 del tag[attr]
 
     def _prune(el, depth):
-        if depth > max_depth:
-            el.string = el.get_text(separator=" ", strip=True) or ""
-            for child in list(el.children):
-                if child != el.string:
-                    child.extract() if hasattr(child, "extract") else None
-            return
         for child in list(el.children):
-            if hasattr(child, "name") and child.name:
+            if not (hasattr(child, "name") and child.name):
+                continue
+            if depth >= max_depth:
+                text = child.get_text(separator=" ", strip=True)
+                child.clear()
+                if text:
+                    child.string = text
+            else:
                 _prune(child, depth + 1)
 
     for top in soup.find_all(True, recursive=False):
@@ -591,7 +592,10 @@ def generate():
     if not target_selector:
         return jsonify(error="targetSelector is required."), 400
 
-    clean_html = sanitize_html(target_html)
+    try:
+        clean_html = sanitize_html(target_html)
+    except Exception:
+        clean_html = target_html
 
     prompt = LLM_PROMPT.format(
         page_url=page_url,
@@ -659,7 +663,10 @@ def regenerate():
     if feedback_note:
         user_note_section = f"=== ADDITIONAL USER FEEDBACK ===\n{feedback_note}"
 
-    clean_html = sanitize_html(target_html)
+    try:
+        clean_html = sanitize_html(target_html)
+    except Exception:
+        clean_html = target_html
 
     prompt = CORRECTION_PROMPT.format(
         issue_list="\n".join(issue_lines),
