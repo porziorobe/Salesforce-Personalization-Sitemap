@@ -200,6 +200,9 @@ Rules:
    Target the customer's actual class names in the <style> block.
    Do NOT override layout/dimensional properties — let the markup structure from
    TARGET_HTML handle the layout naturally.
+   CRITICAL: Every CSS declaration MUST end with !important to override the
+   customer's global stylesheets. Example:
+   .hero-header { font-size: 32px !important; font-weight: 600 !important; color: #DDD !important; }
 
 5. ALL FIVE Handlebars substitution variables are MANDATORY — no exceptions.
    Use exactly this syntax (four curly braces on each side):
@@ -237,7 +240,8 @@ ISSUE_INSTRUCTIONS = {
     "header_style": (
         "HEADER: Revise the heading element to better match the customer's original "
         "styling. Use EXTRACTED_STYLES header values (fontSize, fontWeight, color) and "
-        "the customer's actual class names from TARGET_HTML."
+        "the customer's actual class names from TARGET_HTML. "
+        "All declarations must use !important."
     ),
     "subheader_missing": (
         "SUBHEADER: Ensure a subheading element is present using {{subVar 'Subheader'}} "
@@ -260,7 +264,8 @@ ISSUE_INSTRUCTIONS = {
     "layout_wrong": (
         "LAYOUT: The transformer HTML structure should more closely mirror the tag "
         "hierarchy and nesting in TARGET_HTML. Preserve the customer's original "
-        "layout (wrapper divs, containers, positioning classes)."
+        "layout (wrapper divs, containers, positioning classes). "
+        "All <style> declarations must use !important."
     ),
 }
 
@@ -271,6 +276,7 @@ RULES:
 - Fix ONLY the transformer HTML (the content inside transformerTypeDetails.html backticks).
 - Do NOT change any other part of the JavaScript — the boilerplate must remain identical.
 - All five subVar Handlebars variables remain MANDATORY in the transformer HTML.
+- Every CSS declaration in the <style> block MUST end with !important.
 - Output the COMPLETE revised JavaScript file. No markdown fences, no commentary.
 
 === ISSUES TO FIX ===
