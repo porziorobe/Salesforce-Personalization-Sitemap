@@ -47,6 +47,16 @@ DEFAULT_STYLES = {
         "padding": "10px 20px",
         "color": "#DDDDDD",
     },
+    "wrapper": {
+        "width": "100%",
+        "minHeight": "500px",
+        "padding": "0 5%",
+        "display": "flex",
+        "flexFlow": "column wrap",
+        "justifyContent": "center",
+        "alignItems": "flex-start",
+        "textAlign": "left",
+    },
 }
 
 LLM_PROMPT = """You are an expert Salesforce Personalization (Interaction Studio) developer.
@@ -192,14 +202,28 @@ Rules:
        <div class="sfdcep-cta"><a ...>...</a></div>
      </div>
 
-4. STYLE BLOCK — Build a <style> block that:
-   - Styles the customer's wrapper class for layout (min-height, display flex,
-     centering) and font-family from EXTRACTED_STYLES banner.fontFamily
-   - Styles .sfdcep-header using EXTRACTED_STYLES header values (fontSize,
-     fontWeight, color)
-   - Styles .sfdcep-subheader using EXTRACTED_STYLES subheader values
-   - Styles .sfdcep-cta a using EXTRACTED_STYLES cta values (backgroundColor,
-     borderRadius, padding, color)
+4. STYLE BLOCK — Build a <style> block using EXTRACTED_STYLES values.
+   Do NOT hardcode dimensions or guess layout values — use exactly what
+   EXTRACTED_STYLES provides:
+
+   a) Customer's wrapper class — use EXTRACTED_STYLES.wrapper values:
+      width, minHeight (as min-height), padding, display, flexFlow (as flex-flow),
+      justifyContent (as justify-content), alignItems (as align-items),
+      textAlign (as text-align).
+      Also apply font-family from EXTRACTED_STYLES.banner.fontFamily.
+
+   b) .sfdcep-content — width: 100%; max-width: 960px; padding: 2rem;
+
+   c) .sfdcep-header — use EXTRACTED_STYLES.header values (fontSize,
+      fontWeight, color). Also add padding-bottom: 20px.
+
+   d) .sfdcep-subheader — use EXTRACTED_STYLES.subheader values (fontSize,
+      fontWeight, color). Also add padding-bottom: 30px.
+
+   e) .sfdcep-cta a — use EXTRACTED_STYLES.cta values (backgroundColor,
+      borderRadius, padding, color). Also add text-decoration: none and
+      display: inline-block.
+
    Keep styles minimal and self-contained. Do not rely on the customer's
    stylesheets being loaded.
 
@@ -376,6 +400,25 @@ def infer_bucket(selector_text, declarations):
     return "banner"
 
 
+def pick_wrapper_values(base, declarations):
+    prop_map = {
+        "width": "width",
+        "min-height": "minHeight",
+        "padding": "padding",
+        "display": "display",
+        "flex-flow": "flexFlow",
+        "flex-direction": "flexFlow",
+        "justify-content": "justifyContent",
+        "align-items": "alignItems",
+        "text-align": "textAlign",
+    }
+    for css_prop, key in prop_map.items():
+        if css_prop in declarations:
+            base["wrapper"][key] = declarations[css_prop]
+    if "height" in declarations and base["wrapper"]["minHeight"] == DEFAULT_STYLES["wrapper"]["minHeight"]:
+        base["wrapper"]["minHeight"] = declarations["height"]
+
+
 def pick_style_values(base, declarations, bucket):
     if bucket == "banner":
         if "background-color" in declarations:
@@ -384,6 +427,7 @@ def pick_style_values(base, declarations, bucket):
             base["banner"]["backgroundColor"] = declarations["background"]
         if "font-family" in declarations:
             base["banner"]["fontFamily"] = declarations["font-family"]
+        pick_wrapper_values(base, declarations)
     elif bucket == "header":
         if "color" in declarations:
             base["header"]["color"] = declarations["color"]
