@@ -65,7 +65,7 @@
   }
 
   function updateRegenerateEnabled() {
-    regenerateBtn.disabled = getCheckedIssues().length === 0;
+    regenerateBtn.disabled = getCheckedIssues().length === 0 && !feedbackNote.value.trim();
   }
 
   async function extractStyles(pageUrl, targetSelector) {
@@ -184,8 +184,9 @@
   async function regenerateWithFeedback() {
     clearError();
     var issues = getCheckedIssues();
-    if (issues.length === 0) {
-      showError('Select at least one issue to fix.');
+    var note = feedbackNote.value.trim();
+    if (issues.length === 0 && !note) {
+      showError('Select an issue or provide feedback text.');
       return;
     }
 
@@ -231,6 +232,7 @@
   issueCheckboxes.forEach(function (cb) {
     cb.addEventListener('change', updateRegenerateEnabled);
   });
+  feedbackNote.addEventListener('input', updateRegenerateEnabled);
 
   manualToggle.addEventListener('change', function () {
     setEditable(this.checked);

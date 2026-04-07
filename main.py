@@ -225,28 +225,16 @@ ISSUE_INSTRUCTIONS = {
         "inline style background: url(...) on the appropriate element, following "
         "the customer's pattern from TARGET_HTML."
     ),
-    "header_style": (
-        "HEADER: The heading element should preserve the customer's class names "
-        "from TARGET_HTML. If styling is missing, use EXTRACTED_STYLES header "
-        "values (fontSize, fontWeight, color) as inline style attributes."
-    ),
-    "subheader_missing": (
-        "SUBHEADER: Ensure a subheading element is present using {{subVar 'Subheader'}} "
-        "as its text content, placed in the customer's subtitle/description element."
+    "text_content": (
+        "HEADER / SUBHEADER: Ensure the heading uses {{subVar 'Header'}} and the "
+        "subtitle uses {{subVar 'Subheader'}}. Preserve the customer's class names "
+        "on these elements. If styling is missing, use EXTRACTED_STYLES header and "
+        "subheader values as inline style attributes."
     ),
     "cta_missing": (
         "CTA BUTTON: Ensure a visible CTA link is present: "
         "<a href=\"{{subVar 'CallToActionUrl'}}\">{{subVar 'CallToActionText'}}</a>. "
         "If adding a new CTA, style it using EXTRACTED_STYLES cta values as inline styles."
-    ),
-    "cta_url": (
-        "CTA URL: The CTA link href must use {{subVar 'CallToActionUrl'}}. "
-        "Make sure the <a> element has this as its href attribute."
-    ),
-    "wrong_classes": (
-        "CLASS NAMES: Use the customer's actual CSS class names from TARGET_HTML, "
-        "not generic names. The transformer runs on the live page where these "
-        "classes inherit styling from the customer's stylesheets."
     ),
     "layout_wrong": (
         "LAYOUT: The transformer HTML structure should more closely mirror the tag "
@@ -636,16 +624,15 @@ def regenerate():
 
     if not previous_output.strip():
         return jsonify(error="previousOutput is required."), 400
-    if not issues:
-        return jsonify(error="Select at least one issue to fix."), 400
 
     issue_lines = []
     for key in issues:
         instruction = ISSUE_INSTRUCTIONS.get(key)
         if instruction:
             issue_lines.append(f"- {instruction}")
-    if not issue_lines:
-        return jsonify(error="No recognized issues selected."), 400
+
+    if not issue_lines and not feedback_note:
+        return jsonify(error="Select an issue or provide feedback text."), 400
 
     user_note_section = ""
     if feedback_note:
