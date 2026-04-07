@@ -591,12 +591,23 @@ def generate():
             if attempt < 2:
                 time.sleep(2 ** attempt)
     if result is None:
-        return jsonify(error=f"LLM generation failed: {last_err}"), 502
+        return jsonify(error=_llm_error_message(last_err)), 502
 
     text = result if isinstance(result, str) else str(result)
     text = strip_markdown_fences(text)
 
     return jsonify(sitemap=text)
+
+
+def _llm_error_message(err):
+    msg = str(err) if err else ""
+    if "503" in msg or "timeout" in msg.lower():
+        return (
+            "The AI service timed out \u2014 this can happen with large or complex "
+            "hero elements. Try again, or select a simpler parent element with "
+            "fewer nested containers if the problem persists."
+        )
+    return f"LLM generation failed: {msg}"
 
 
 def strip_markdown_fences(text):
@@ -664,7 +675,7 @@ def regenerate():
             if attempt < 2:
                 time.sleep(2 ** attempt)
     if result is None:
-        return jsonify(error=f"LLM regeneration failed: {last_err}"), 502
+        return jsonify(error=_llm_error_message(last_err)), 502
 
     text = result if isinstance(result, str) else str(result)
     text = strip_markdown_fences(text)
