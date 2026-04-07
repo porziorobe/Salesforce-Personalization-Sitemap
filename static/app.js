@@ -178,7 +178,15 @@
       });
       var data = await response.json().catch(function () { return {}; });
       if (!response.ok) {
-        showError(data.error || 'Generation failed (' + response.status + ').');
+        if (response.status === 502 || response.status === 503 || response.status === 504) {
+          showError(
+            'The AI service timed out \u2014 this can happen with large or complex '
+            + 'hero elements. Try again, or select a simpler parent element with '
+            + 'fewer nested containers if the problem persists.'
+          );
+        } else {
+          showError(data.error || 'Generation failed (' + response.status + ').');
+        }
         return;
       }
       if (!data.sitemap) {
@@ -228,7 +236,15 @@
       });
       var data = await response.json().catch(function () { return {}; });
       if (!response.ok) {
-        showError(data.error || 'Regeneration failed (' + response.status + ').');
+        if (response.status === 502 || response.status === 503 || response.status === 504) {
+          showError(
+            'The AI service timed out \u2014 this can happen with large or complex '
+            + 'hero elements. Try again, or select a simpler parent element with '
+            + 'fewer nested containers if the problem persists.'
+          );
+        } else {
+          showError(data.error || 'Regeneration failed (' + response.status + ').');
+        }
         return;
       }
       if (!data.sitemap) {
