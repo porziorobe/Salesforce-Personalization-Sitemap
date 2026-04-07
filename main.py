@@ -162,38 +162,30 @@ Do NOT add, remove, reorder, or modify any other line in the boilerplate.
 === PART 2 — GENERATE THE TRANSFORMER HTML ===
 
 Generate a clean, self-contained hero banner to replace GENERATED_TRANSFORMER_HTML.
-The banner must look polished and professional with no external stylesheets.
+It must look polished and professional using ONLY inline styles — no <style> block.
 
 Rules:
 
-1. WRAPPER — The outermost element must:
-   a) Use the class names from TARGET_ELEMENT_CLASSES (so the content zone
-      selector continues to match the page)
-   b) Have this exact inline style for the background image:
-      style="background: url('{{{{subVar 'BackgroundImageUrl'}}}}') no-repeat center center / cover;"
-      Do NOT set the background via <style>. Do NOT use a CSS gradient.
+1. WRAPPER — A single outermost div with:
+   - The class names from TARGET_ELEMENT_CLASSES
+   - An inline style that includes the background image, layout, and font:
+     background: url('{{{{subVar 'BackgroundImageUrl'}}}}') no-repeat center center / cover;
+     plus min-height, padding, display:flex, flex-direction, justify-content,
+     align-items, and font-family from EXTRACTED_STYLES.banner.fontFamily.
+     Make the banner fill its space and vertically center the content.
 
-2. CONTENT — Inside the wrapper, build a simple structure containing:
-   - A heading element with {{{{subVar 'Header'}}}}
-   - A subheading element with {{{{subVar 'Subheader'}}}}
+2. CONTENT — Inside the wrapper, include these elements, each with inline styles
+   derived from EXTRACTED_STYLES:
+   - A heading with {{{{subVar 'Header'}}}} — use header fontSize, fontWeight, color
+   - A subheading with {{{{subVar 'Subheader'}}}} — use subheader fontSize, fontWeight, color
    - A CTA link: <a href="{{{{subVar 'CallToActionUrl'}}}}">{{{{subVar 'CallToActionText'}}}}</a>
+     — use cta backgroundColor, borderRadius, padding, color, plus
+     text-decoration:none and display:inline-block
    All five subVar variables are MANDATORY — no exceptions.
-   Keep the inner markup simple (wrapper > heading + subheading + CTA).
    Do NOT reproduce complex carousel, slider, or grid markup.
+   Do NOT generate a <style> block — all styling must be inline.
 
-3. STYLE BLOCK — Build a <style> block using EXTRACTED_STYLES values:
-   - Wrapper: font-family from EXTRACTED_STYLES.banner.fontFamily,
-     min-height: 500px, padding: 40px 5%, display: flex, flex-direction: column,
-     justify-content: center, align-items: flex-start, background-size: cover
-   - Heading: font-size, font-weight, color from EXTRACTED_STYLES.header,
-     plus margin-bottom: 20px
-   - Subheading: font-size, font-weight, color from EXTRACTED_STYLES.subheader,
-     plus margin-bottom: 30px
-   - CTA link: background-color, border-radius, padding, color from
-     EXTRACTED_STYLES.cta, plus text-decoration: none and display: inline-block
-
-Output only valid HTML (a <style> block followed by markup).
-No JavaScript, no markdown fences, no explanation.
+Output only valid HTML markup (no <style> block, no JavaScript, no markdown fences).
 
 === INPUTS ===
 - PAGE_URL: {page_url}
@@ -209,13 +201,12 @@ transformer HTML inserted). No markdown fences, no commentary."""
 
 ISSUE_INSTRUCTIONS = {
     "background_image": (
-        "BACKGROUND IMAGE: The outermost wrapper div MUST have an inline style: "
-        "style=\"background: url('{{subVar 'BackgroundImageUrl'}}') no-repeat center center / cover;\". "
-        "Do NOT set the background via the <style> block or use a CSS gradient."
+        "BACKGROUND IMAGE: The outermost wrapper div's inline style MUST include: "
+        "background: url('{{subVar 'BackgroundImageUrl'}}') no-repeat center center / cover;"
     ),
     "header_style": (
-        "HEADER: Revise the heading element styling. Use EXTRACTED_STYLES header "
-        "values (fontSize, fontWeight, color) in the <style> block."
+        "HEADER: Revise the heading element's inline style. Use EXTRACTED_STYLES header "
+        "values (fontSize, fontWeight, color) as inline style attributes."
     ),
     "subheader_missing": (
         "SUBHEADER: Ensure a subheading element is present using {{subVar 'Subheader'}} "
@@ -232,8 +223,8 @@ ISSUE_INSTRUCTIONS = {
     ),
     "banner_sizing": (
         "BANNER SIZE: The banner looks too small or smushed. Ensure the outermost "
-        "wrapper has min-height: 500px, padding: 40px 5%, and uses flexbox centering "
-        "(display: flex, flex-direction: column, justify-content: center)."
+        "wrapper's inline style includes min-height: 500px, padding: 40px 5%, and "
+        "flexbox centering (display: flex, flex-direction: column, justify-content: center)."
     ),
 }
 
@@ -244,6 +235,7 @@ RULES:
 - Fix ONLY the transformer HTML (the content inside transformerTypeDetails.html backticks).
 - Do NOT change any other part of the JavaScript — the boilerplate must remain identical.
 - All five subVar Handlebars variables remain MANDATORY in the transformer HTML.
+- All styling must be inline (style="" attributes). Do NOT generate a <style> block.
 - Output the COMPLETE revised JavaScript file. No markdown fences, no commentary.
 
 === ISSUES TO FIX ===
