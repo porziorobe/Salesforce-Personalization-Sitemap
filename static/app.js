@@ -16,6 +16,11 @@
   var regenerateBtn = document.getElementById('regenerate-btn');
   var issueCheckboxes = document.querySelectorAll('input[name="fb-issue"]');
 
+  var historyList = document.getElementById('history-list');
+  var clearHistoryBtn = document.getElementById('clear-history-btn');
+  var HISTORY_KEY = 'sitemap_history';
+  var HISTORY_MAX = 50;
+
   var extractedStyles = null;
   var stylesReady = false;
 
@@ -174,6 +179,7 @@
       outputArea.value = data.sitemap;
       copyBtn.disabled = false;
       showFeedbackPanel();
+      addHistoryEntry(pageUrl, data.sitemap);
     } catch (err) {
       showError('Network error during sitemap generation. Try again.');
     } finally {
@@ -218,6 +224,7 @@
       copyBtn.disabled = false;
       hideFeedbackPanel();
       showFeedbackPanel();
+      addHistoryEntry(pageUrlInput.value.trim(), data.sitemap);
     } catch (err) {
       showError('Network error during regeneration. Try again.');
     } finally {
@@ -253,4 +260,101 @@
       showError('Could not copy to clipboard.');
     }
   });
+
+  function deriveBrand(url) {
+    try {
+      var host = new URL(url).hostname.replace(/^www\./, '');
+      var name = host.split('.')[0];
+      return name.charAt(0).toUpperCase() + name.slice(1);
+    } catch (_) {
+      return 'Unknown';
+    }
+  }
+
+  function getHistory() {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
+    catch (_) { return []; }
+  }
+
+  function saveHistory(entries) {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, HISTORY_MAX)));
+  }
+
+  function addHistoryEntry(url, sitemap) {
+    var entries = getHistory();
+    entries.unshift({
+      id: String(Date.now()),
+      brand: deriveBrand(url),
+      url: url,
+      timestamp: Date.now(),
+      sitemap: sitemap,
+    });
+    saveHistory(entries);
+    renderHistory();
+  }
+
+  function deleteHistoryEntry(id) {
+    saveHistory(getHistory().filter(function (e) { return e.id !== id; }));
+    renderHistory();
+  }
+
+  function timeAgo(ts) {
+    var diff = Math.floor((Date.now() - ts) / 1000);
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return Math.floor(diff / 60) + ' min ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    if (diff < 172800) return 'Yesterday';
+    return new Date(ts).toLocaleDateString();
+  }
+
+  function renderHistory() {
+    var entries = getHistory();
+    clearHistoryBtn.hidden = entries.length === 0;
+
+    if (entries.length === 0) {
+      historyList.innerHTML = '<p class="history-empty">No sitemaps generated yet.</p>';
+      return;
+    }
+
+    historyList.innerHTML = entries.map(function (entry) {
+      return '<div class="history-card" data-id="' + entry.id + '">'
+        + '<div class="history-card-info">'
+        + '<span class="history-brand">' + entry.brand + '</span>'
+        + '<span class="history-url" title="' + entry.url + '">' + entry.url + '</span>'
+        + '</div>'
+        + '<span class="history-time">' + timeAgo(entry.timestamp) + '</span>'
+        + '<div class="history-actions">'
+        + '<button type="button" class="history-btn history-btn--load">Load</button>'
+        + '<button type="button" class="history-btn history-btn--delete">Delete</button>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  historyList.addEventListener('click', function (e) {
+    var btn = e.target.closest('.history-btn');
+    if (!btn) return;
+    var card = btn.closest('.history-card');
+    var id = card.dataset.id;
+    var entries = getHistory();
+    var entry = entries.find(function (e) { return e.id === id; });
+    if (!entry) return;
+
+    if (btn.classList.contains('history-btn--load')) {
+      outputArea.value = entry.sitemap;
+      copyBtn.disabled = false;
+      showFeedbackPanel();
+      outputArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else if (btn.classList.contains('history-btn--delete')) {
+      deleteHistoryEntry(id);
+    }
+  });
+
+  clearHistoryBtn.addEventListener('click', function () {
+    if (!confirm('Clear all generation history?')) return;
+    localStorage.removeItem(HISTORY_KEY);
+    renderHistory();
+  });
+
+  renderHistory();
 })();

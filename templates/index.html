@@ -15,6 +15,9 @@
             <h1 class="app-title">Personalization Sitemap Generator</h1>
             <p class="app-subtitle">Detect hero content, extract styles, and generate Salesforce sitemap code.</p>
           </div>
+          <nav class="header-nav">
+            <a href="#generation-history" class="header-link">History</a>
+          </nav>
         </div>
       </header>
 
@@ -102,6 +105,16 @@
           </div>
         </section>
       </main>
+
+      <section id="generation-history" class="history-section" aria-labelledby="history-heading">
+        <div class="history-header">
+          <h2 id="history-heading" class="panel-heading">Generation History</h2>
+          <button type="button" id="clear-history-btn" class="history-clear" hidden>Clear All</button>
+        </div>
+        <div id="history-list" class="history-list">
+          <p class="history-empty">No sitemaps generated yet.</p>
+        </div>
+      </section>
 
       <footer class="app-footer" role="contentinfo">
         <p>Designed for Salesforce sales engineers. Powered by Einstein LLM via Salesforce Connected App.</p>
