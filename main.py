@@ -7,7 +7,7 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 import cssutils
-from bs4 import BeautifulSoup, Comment
+from bs4 import BeautifulSoup
 from flask import Flask, request, jsonify, render_template
 
 from dotenv import load_dotenv
@@ -54,7 +54,7 @@ Your job is to generate a ready-to-use sitemap JavaScript file.
 
 You will receive four inputs:
 1. PAGE_URL  - The customer's webpage URL
-2. TARGET_HTML - The raw HTML of the hero element to personalize
+2. TARGET_ELEMENT_CLASSES - The CSS class names on the hero element being replaced
 3. TARGET_SELECTOR - The CSS selector for that element
 4. EXTRACTED_STYLES - CSS values extracted from the customer's page
 
@@ -161,65 +161,44 @@ Do NOT add, remove, reorder, or modify any other line in the boilerplate.
 
 === PART 2 — GENERATE THE TRANSFORMER HTML ===
 
-Approach this as a senior front-end developer who deeply respects the customer's
-existing design system. Your goal is a drop-in replacement that looks intentional
-and native — not a redesign.
-
-This is the ONLY creative part. You must generate the HTML string that replaces
-GENERATED_TRANSFORMER_HTML in the boilerplate above.
-
-STRATEGY: Reproduce the customer's tag hierarchy and class names from TARGET_HTML,
-but make it self-contained by providing all necessary styles in a <style> block.
+Generate a clean, self-contained hero banner to replace GENERATED_TRANSFORMER_HTML.
+The banner must look polished and professional with no external stylesheets.
 
 Rules:
 
-1. REPRODUCE THE CUSTOMER'S MARKUP STRUCTURE.
-   Analyze TARGET_HTML and mirror its tag hierarchy, nesting, and class names.
-   The personalized banner should look like a drop-in replacement for the
-   original element. Use the customer's actual class names — not generic names.
-
-2. STRIP POSITIONING UTILITY CLASSES that depend on external CSS frameworks.
-   Remove classes like: absolute, relative, fixed, top-*, bottom-*, left-*,
-   right-*, translate-*, transform, z-*, inset-*, position-related Tailwind
-   utilities. These break without the site's full CSS.
-
-3. OUTERMOST WRAPPER STYLING — The outermost element MUST have:
-   a) The customer's semantic class names (hero, banner, etc. — NOT positioning
-      utility classes)
-   b) This exact inline style for the background image:
+1. WRAPPER — The outermost element must:
+   a) Use the class names from TARGET_ELEMENT_CLASSES (so the content zone
+      selector continues to match the page)
+   b) Have this exact inline style for the background image:
       style="background: url('{{{{subVar 'BackgroundImageUrl'}}}}') no-repeat center center / cover;"
       Do NOT set the background via <style>. Do NOT use a CSS gradient.
 
-4. STYLE BLOCK — Build a <style> block that provides cosmetic styles the
-   transformer needs to look correct without the customer's stylesheets:
-   - Use EXTRACTED_STYLES.banner.fontFamily on the outermost wrapper
-   - Use EXTRACTED_STYLES.header values (fontSize, fontWeight, color) on the heading
-   - Use EXTRACTED_STYLES.subheader values (fontSize, fontWeight, color) on the subheading
-   - Use EXTRACTED_STYLES.cta values (backgroundColor, borderRadius, padding, color)
-     on the CTA link, plus text-decoration: none and display: inline-block
-   Target the customer's actual class names in the <style> block.
-   Do NOT override layout/dimensional properties — let the markup structure from
-   TARGET_HTML handle the layout naturally.
+2. CONTENT — Inside the wrapper, build a simple structure containing:
+   - A heading element with {{{{subVar 'Header'}}}}
+   - A subheading element with {{{{subVar 'Subheader'}}}}
+   - A CTA link: <a href="{{{{subVar 'CallToActionUrl'}}}}">{{{{subVar 'CallToActionText'}}}}</a>
+   All five subVar variables are MANDATORY — no exceptions.
+   Keep the inner markup simple (wrapper > heading + subheading + CTA).
+   Do NOT reproduce complex carousel, slider, or grid markup.
 
-5. ALL FIVE Handlebars substitution variables are MANDATORY — no exceptions.
-   Use exactly this syntax (four curly braces on each side):
-   - {{{{subVar 'BackgroundImageUrl'}}}} → inline style on the wrapper (rule 3)
-   - {{{{subVar 'Header'}}}} → text content of the main heading
-   - {{{{subVar 'Subheader'}}}} → text content of a subheading element
-   - {{{{subVar 'CallToActionUrl'}}}} → href of the CTA link
-   - {{{{subVar 'CallToActionText'}}}} → text of the CTA link
-   If TARGET_HTML lacks a subheading or CTA, add elements for them styled to
-   match the page using EXTRACTED_STYLES values. Every variable must appear —
-   they are the personalization fields the marketer populates.
+3. STYLE BLOCK — Build a <style> block using EXTRACTED_STYLES values:
+   - Wrapper: font-family from EXTRACTED_STYLES.banner.fontFamily,
+     min-height: 500px, padding: 40px 5%, display: flex, flex-direction: column,
+     justify-content: center, align-items: flex-start, background-size: cover
+   - Heading: font-size, font-weight, color from EXTRACTED_STYLES.header,
+     plus margin-bottom: 20px
+   - Subheading: font-size, font-weight, color from EXTRACTED_STYLES.subheader,
+     plus margin-bottom: 30px
+   - CTA link: background-color, border-radius, padding, color from
+     EXTRACTED_STYLES.cta, plus text-decoration: none and display: inline-block
 
-6. Output only valid HTML (a <style> block followed by markup).
-   No JavaScript, no markdown fences, no explanation.
+Output only valid HTML (a <style> block followed by markup).
+No JavaScript, no markdown fences, no explanation.
 
 === INPUTS ===
 - PAGE_URL: {page_url}
 - TARGET_SELECTOR: {target_selector}
-- TARGET_HTML:
-{target_html}
+- TARGET_ELEMENT_CLASSES: {target_classes}
 - EXTRACTED_STYLES:
 {extracted_styles}
 
@@ -235,9 +214,8 @@ ISSUE_INSTRUCTIONS = {
         "Do NOT set the background via the <style> block or use a CSS gradient."
     ),
     "header_style": (
-        "HEADER: Revise the heading element to better match the customer's original "
-        "styling. Use EXTRACTED_STYLES header values (fontSize, fontWeight, color) and "
-        "the customer's actual class names from TARGET_HTML."
+        "HEADER: Revise the heading element styling. Use EXTRACTED_STYLES header "
+        "values (fontSize, fontWeight, color) in the <style> block."
     ),
     "subheader_missing": (
         "SUBHEADER: Ensure a subheading element is present using {{subVar 'Subheader'}} "
@@ -252,15 +230,10 @@ ISSUE_INSTRUCTIONS = {
         "CTA URL: The CTA link href must use {{subVar 'CallToActionUrl'}}. "
         "Make sure the <a> element has this as its href attribute."
     ),
-    "wrong_classes": (
-        "CLASS NAMES: Use the customer's actual CSS class names from TARGET_HTML, "
-        "not generic names like sfdcep-banner. Inspect TARGET_HTML and replicate "
-        "the real class names in your output."
-    ),
-    "layout_wrong": (
-        "LAYOUT: The transformer HTML structure should more closely mirror the tag "
-        "hierarchy and nesting in TARGET_HTML. Preserve the customer's original "
-        "layout (wrapper divs, containers, positioning classes)."
+    "banner_sizing": (
+        "BANNER SIZE: The banner looks too small or smushed. Ensure the outermost "
+        "wrapper has min-height: 500px, padding: 40px 5%, and uses flexbox centering "
+        "(display: flex, flex-direction: column, justify-content: center)."
     ),
 }
 
@@ -281,8 +254,7 @@ RULES:
 === ORIGINAL INPUTS ===
 - PAGE_URL: {page_url}
 - TARGET_SELECTOR: {target_selector}
-- TARGET_HTML:
-{target_html}
+- TARGET_ELEMENT_CLASSES: {target_classes}
 - EXTRACTED_STYLES:
 {extracted_styles}
 
@@ -375,68 +347,52 @@ def infer_bucket(selector_text, declarations):
     return "banner"
 
 
-STRIP_TAGS = {"script", "noscript", "iframe", "svg", "link", "meta"}
-
-
-def sanitize_html(raw_html):
-    """Strip noise from TARGET_HTML before sending to the LLM."""
+def extract_wrapper_classes(raw_html):
+    """Return the outermost element's class list as a space-separated string."""
     soup = BeautifulSoup(raw_html, "html.parser")
+    top = soup.find(True)
+    if top and top.get("class"):
+        return " ".join(top["class"])
+    return ""
 
-    for tag in list(soup.find_all(STRIP_TAGS)):
-        tag.decompose()
 
-    for comment in list(soup.find_all(string=lambda t: isinstance(t, Comment))):
-        comment.extract()
-
-    for tag in list(soup.find_all(True)):
-        if not tag.parent:
-            continue
-        style = (tag.get("style") or "").lower()
-        if "display: none" in style or "visibility: hidden" in style:
-            tag.decompose()
-            continue
-        if tag.get("aria-hidden") == "true":
-            tag.decompose()
-            continue
-        for attr in list(tag.attrs):
-            if attr.startswith("data-"):
-                del tag[attr]
-
-    return str(soup).strip()
+def _usable(val):
+    """Reject CSS variable references and empty values."""
+    return val and not val.strip().startswith("var(")
 
 
 def pick_style_values(base, declarations, bucket):
     if bucket == "banner":
-        if "background-color" in declarations:
+        if "background-color" in declarations and _usable(declarations["background-color"]):
             base["banner"]["backgroundColor"] = declarations["background-color"]
-        elif "background" in declarations:
+        elif "background" in declarations and _usable(declarations["background"]):
             base["banner"]["backgroundColor"] = declarations["background"]
-        if "font-family" in declarations:
+        if "font-family" in declarations and _usable(declarations["font-family"]):
             base["banner"]["fontFamily"] = declarations["font-family"]
     elif bucket == "header":
-        if "color" in declarations:
+        if "color" in declarations and _usable(declarations["color"]):
             base["header"]["color"] = declarations["color"]
-        if "font-size" in declarations:
+        if "font-size" in declarations and _usable(declarations["font-size"]):
             base["header"]["fontSize"] = declarations["font-size"]
-        if "font-weight" in declarations:
+        if "font-weight" in declarations and _usable(declarations["font-weight"]):
             base["header"]["fontWeight"] = declarations["font-weight"]
     elif bucket == "subheader":
-        if "color" in declarations:
+        if "color" in declarations and _usable(declarations["color"]):
             base["subheader"]["color"] = declarations["color"]
-        if "font-size" in declarations:
+        if "font-size" in declarations and _usable(declarations["font-size"]):
             base["subheader"]["fontSize"] = declarations["font-size"]
-        if "font-weight" in declarations:
+        if "font-weight" in declarations and _usable(declarations["font-weight"]):
             base["subheader"]["fontWeight"] = declarations["font-weight"]
     elif bucket == "cta":
-        if "background-color" in declarations:
+        if "background-color" in declarations and _usable(declarations["background-color"]):
             base["cta"]["backgroundColor"] = declarations["background-color"]
-        elif "background" in declarations:
+        elif "background" in declarations and _usable(declarations["background"]):
             base["cta"]["backgroundColor"] = declarations["background"]
-        if "border-radius" in declarations:
+        if "border-radius" in declarations and _usable(declarations["border-radius"]):
             base["cta"]["borderRadius"] = declarations["border-radius"]
-        if "padding" in declarations:
+        if "padding" in declarations and _usable(declarations["padding"]):
             base["cta"]["padding"] = declarations["padding"]
-        if "color" in declarations:
+        if "color" in declarations and _usable(declarations["color"]):
             base["cta"]["color"] = declarations["color"]
 
 
@@ -578,13 +534,13 @@ def generate():
         return jsonify(error="targetSelector is required."), 400
 
     try:
-        clean_html = sanitize_html(target_html)
+        target_classes = extract_wrapper_classes(target_html)
     except Exception:
-        clean_html = target_html
+        target_classes = ""
 
     prompt = LLM_PROMPT.format(
         page_url=page_url,
-        target_html=clean_html,
+        target_classes=target_classes,
         target_selector=target_selector,
         extracted_styles=json.dumps(extracted_styles, indent=2),
     )
@@ -649,16 +605,16 @@ def regenerate():
         user_note_section = f"=== ADDITIONAL USER FEEDBACK ===\n{feedback_note}"
 
     try:
-        clean_html = sanitize_html(target_html)
+        target_classes = extract_wrapper_classes(target_html)
     except Exception:
-        clean_html = target_html
+        target_classes = ""
 
     prompt = CORRECTION_PROMPT.format(
         issue_list="\n".join(issue_lines),
         user_note=user_note_section,
         page_url=page_url,
         target_selector=target_selector,
-        target_html=clean_html,
+        target_classes=target_classes,
         extracted_styles=json.dumps(extracted_styles, indent=2),
         previous_output=previous_output,
     )
