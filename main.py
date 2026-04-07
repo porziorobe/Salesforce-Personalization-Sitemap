@@ -375,10 +375,10 @@ def infer_bucket(selector_text, declarations):
     return "banner"
 
 
-STRIP_TAGS = {"script", "noscript", "iframe", "svg", "style", "link", "meta"}
+STRIP_TAGS = {"script", "noscript", "iframe", "svg", "link", "meta"}
 
 
-def sanitize_html(raw_html, max_depth=3):
+def sanitize_html(raw_html):
     """Strip noise from TARGET_HTML before sending to the LLM."""
     soup = BeautifulSoup(raw_html, "html.parser")
 
@@ -401,21 +401,6 @@ def sanitize_html(raw_html, max_depth=3):
         for attr in list(tag.attrs):
             if attr.startswith("data-"):
                 del tag[attr]
-
-    def _prune(el, depth):
-        for child in list(el.children):
-            if not (hasattr(child, "name") and child.name):
-                continue
-            if depth >= max_depth:
-                text = child.get_text(separator=" ", strip=True)
-                child.clear()
-                if text:
-                    child.string = text
-            else:
-                _prune(child, depth + 1)
-
-    for top in soup.find_all(True, recursive=False):
-        _prune(top, 1)
 
     return str(soup).strip()
 
