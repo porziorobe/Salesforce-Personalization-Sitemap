@@ -46,7 +46,8 @@
   }
 
   function updateGenerateEnabled() {
-    generateBtn.disabled = !stylesReady;
+    var manualHasContent = targetSelectorInput.value.trim() && targetHtmlInput.value.trim();
+    generateBtn.disabled = !(stylesReady || manualHasContent);
   }
 
   function showFeedbackPanel() {
@@ -119,7 +120,11 @@
       });
       var data = await response.json().catch(function () { return {}; });
       if (!response.ok) {
-        showError(data.error || 'Detection failed (' + response.status + ').');
+        showError('Could not access this site automatically. Enter the CSS selector and element HTML below.');
+        detectedFields.hidden = false;
+        manualToggle.checked = true;
+        setEditable(true);
+        updateGenerateEnabled();
         return;
       }
 
@@ -135,7 +140,11 @@
         showError(extractErr.message || 'Style extraction failed.');
       }
     } catch (err) {
-      showError('Network error during hero detection. Try again.');
+      showError('Could not access this site automatically. Enter the CSS selector and element HTML below.');
+      detectedFields.hidden = false;
+      manualToggle.checked = true;
+      setEditable(true);
+      updateGenerateEnabled();
     } finally {
       setBtnLoading(detectBtn, false);
     }
@@ -181,7 +190,13 @@
       showFeedbackPanel();
       addHistoryEntry(pageUrl, data.sitemap);
     } catch (err) {
-      showError('Network error during sitemap generation. Try again.');
+      showError(
+        err.name === 'TypeError'
+          ? 'The AI service timed out \u2014 this can happen with large or complex '
+            + 'hero elements. Try again, or select a simpler parent element with '
+            + 'fewer nested containers if the problem persists.'
+          : 'Network error during sitemap generation. Try again.'
+      );
     } finally {
       setBtnLoading(generateBtn, false);
     }
@@ -226,7 +241,13 @@
       showFeedbackPanel();
       addHistoryEntry(pageUrlInput.value.trim(), data.sitemap);
     } catch (err) {
-      showError('Network error during regeneration. Try again.');
+      showError(
+        err.name === 'TypeError'
+          ? 'The AI service timed out \u2014 this can happen with large or complex '
+            + 'hero elements. Try again, or select a simpler parent element with '
+            + 'fewer nested containers if the problem persists.'
+          : 'Network error during regeneration. Try again.'
+      );
     } finally {
       setBtnLoading(regenerateBtn, false);
     }
@@ -244,6 +265,8 @@
   manualToggle.addEventListener('change', function () {
     setEditable(this.checked);
   });
+  targetSelectorInput.addEventListener('input', updateGenerateEnabled);
+  targetHtmlInput.addEventListener('input', updateGenerateEnabled);
 
   copyBtn.addEventListener('click', async function () {
     if (!outputArea.value) return;
