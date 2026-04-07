@@ -7,7 +7,7 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 import cssutils
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 from flask import Flask, request, jsonify, render_template
 
 from dotenv import load_dotenv
@@ -54,9 +54,9 @@ Your job is to generate a ready-to-use sitemap JavaScript file.
 
 You will receive four inputs:
 1. PAGE_URL  - The customer's webpage URL
-2. TARGET_ELEMENT_CLASSES - The CSS class names on the hero element being replaced
+2. TARGET_HTML - The cleaned HTML of the hero element to personalize
 3. TARGET_SELECTOR - The CSS selector for that element
-4. EXTRACTED_STYLES - CSS values extracted from the customer's page
+4. EXTRACTED_STYLES - Fallback CSS values extracted from the customer's page
 
 === TASK ===
 Output a single JavaScript file. It has two parts:
@@ -161,36 +161,56 @@ Do NOT add, remove, reorder, or modify any other line in the boilerplate.
 
 === PART 2 — GENERATE THE TRANSFORMER HTML ===
 
-Generate a clean, self-contained hero banner to replace GENERATED_TRANSFORMER_HTML.
-It must look polished and professional using ONLY inline styles — no <style> block.
+Adapt TARGET_HTML into a personalization transformer. Your job is to preserve the
+customer's DOM structure, nesting, and CSS class names while replacing content
+with the 5 Handlebars subVar variables listed below.
+
+The output should look like a trimmed version of TARGET_HTML with subVars slotted
+into the semantically correct positions — NOT a generic template.
 
 Rules:
 
-1. WRAPPER — A single outermost div with:
-   - The class names from TARGET_ELEMENT_CLASSES
-   - An inline style that includes the background image, layout, and font:
+1. PRESERVE THE CUSTOMER'S STRUCTURE.
+   Keep the tag hierarchy, nesting, wrapper divs, and CSS class names from
+   TARGET_HTML. The transformer replaces the original element on the live page,
+   so the customer's existing stylesheets will style these class names.
+   Do NOT flatten the hierarchy. Do NOT invent generic class names.
+
+2. SLOT THE 5 MANDATORY subVar VARIABLES (four curly braces each):
+   - {{{{subVar 'BackgroundImageUrl'}}}} — place as an inline style
      background: url('{{{{subVar 'BackgroundImageUrl'}}}}') no-repeat center center / cover;
-     plus min-height, padding, display:flex, flex-direction, justify-content,
-     align-items, and font-family from EXTRACTED_STYLES.banner.fontFamily.
-     Make the banner fill its space and vertically center the content.
+     on the element where the hero's background image belongs (follow the
+     customer's existing pattern from TARGET_HTML — it may not be the
+     outermost wrapper).
+   - {{{{subVar 'Header'}}}} — text content of the main heading element
+   - {{{{subVar 'Subheader'}}}} — text content of the subtitle/description element
+   - {{{{subVar 'CallToActionUrl'}}}} — href of a CTA link
+   - {{{{subVar 'CallToActionText'}}}} — text of that CTA link
+   If TARGET_HTML lacks a CTA link, add one inside the content area styled
+   to match using EXTRACTED_STYLES.cta values as inline styles.
+   All five variables MUST appear — they are the personalization fields.
 
-2. CONTENT — Inside the wrapper, include these elements, each with inline styles
-   derived from EXTRACTED_STYLES:
-   - A heading with {{{{subVar 'Header'}}}} — use header fontSize, fontWeight, color
-   - A subheading with {{{{subVar 'Subheader'}}}} — use subheader fontSize, fontWeight, color
-   - A CTA link: <a href="{{{{subVar 'CallToActionUrl'}}}}">{{{{subVar 'CallToActionText'}}}}</a>
-     — use cta backgroundColor, borderRadius, padding, color, plus
-     text-decoration:none and display:inline-block
-   All five subVar variables are MANDATORY — no exceptions.
-   Do NOT reproduce complex carousel, slider, or grid markup.
-   Do NOT generate a <style> block — all styling must be inline.
+3. STRIP REMAINING NOISE.
+   Remove any leftover video, audio, modal, script, or interactive elements
+   the pre-processor may have missed. Remove empty wrapper divs that serve
+   no structural purpose. Keep overlay divs, layout containers, and
+   decorative elements (like <hr> separators).
 
-Output only valid HTML markup (no <style> block, no JavaScript, no markdown fences).
+4. INLINE STYLES — use sparingly.
+   Keep inline styles that already exist in TARGET_HTML. Add inline styles
+   only where essential (background image, overlay opacity). Do NOT add a
+   <style> block. The customer's class names will inherit styles from the
+   live page's stylesheets.
+   If you must add fallback styles (e.g. for an added CTA), use
+   EXTRACTED_STYLES values as inline style attributes.
+
+Output only valid HTML. No <style> block, no JavaScript, no markdown fences.
 
 === INPUTS ===
 - PAGE_URL: {page_url}
 - TARGET_SELECTOR: {target_selector}
-- TARGET_ELEMENT_CLASSES: {target_classes}
+- TARGET_HTML:
+{target_html}
 - EXTRACTED_STYLES:
 {extracted_styles}
 
@@ -201,30 +221,37 @@ transformer HTML inserted). No markdown fences, no commentary."""
 
 ISSUE_INSTRUCTIONS = {
     "background_image": (
-        "BACKGROUND IMAGE: The outermost wrapper div's inline style MUST include: "
-        "background: url('{{subVar 'BackgroundImageUrl'}}') no-repeat center center / cover;"
+        "BACKGROUND IMAGE: Ensure {{subVar 'BackgroundImageUrl'}} is placed as an "
+        "inline style background: url(...) on the appropriate element, following "
+        "the customer's pattern from TARGET_HTML."
     ),
     "header_style": (
-        "HEADER: Revise the heading element's inline style. Use EXTRACTED_STYLES header "
+        "HEADER: The heading element should preserve the customer's class names "
+        "from TARGET_HTML. If styling is missing, use EXTRACTED_STYLES header "
         "values (fontSize, fontWeight, color) as inline style attributes."
     ),
     "subheader_missing": (
         "SUBHEADER: Ensure a subheading element is present using {{subVar 'Subheader'}} "
-        "as its text content. Style it using EXTRACTED_STYLES subheader values."
+        "as its text content, placed in the customer's subtitle/description element."
     ),
     "cta_missing": (
         "CTA BUTTON: Ensure a visible CTA link is present: "
         "<a href=\"{{subVar 'CallToActionUrl'}}\">{{subVar 'CallToActionText'}}</a>. "
-        "Style it using EXTRACTED_STYLES cta values (backgroundColor, borderRadius, padding, color)."
+        "If adding a new CTA, style it using EXTRACTED_STYLES cta values as inline styles."
     ),
     "cta_url": (
         "CTA URL: The CTA link href must use {{subVar 'CallToActionUrl'}}. "
         "Make sure the <a> element has this as its href attribute."
     ),
-    "banner_sizing": (
-        "BANNER SIZE: The banner looks too small or smushed. Ensure the outermost "
-        "wrapper's inline style includes min-height: 500px, padding: 40px 5%, and "
-        "flexbox centering (display: flex, flex-direction: column, justify-content: center)."
+    "wrong_classes": (
+        "CLASS NAMES: Use the customer's actual CSS class names from TARGET_HTML, "
+        "not generic names. The transformer runs on the live page where these "
+        "classes inherit styling from the customer's stylesheets."
+    ),
+    "layout_wrong": (
+        "LAYOUT: The transformer HTML structure should more closely mirror the tag "
+        "hierarchy and nesting in TARGET_HTML. Preserve the customer's wrapper divs, "
+        "containers, and layout structure."
     ),
 }
 
@@ -235,7 +262,9 @@ RULES:
 - Fix ONLY the transformer HTML (the content inside transformerTypeDetails.html backticks).
 - Do NOT change any other part of the JavaScript — the boilerplate must remain identical.
 - All five subVar Handlebars variables remain MANDATORY in the transformer HTML.
-- All styling must be inline (style="" attributes). Do NOT generate a <style> block.
+- Preserve the customer's DOM structure and class names from TARGET_HTML.
+- Do NOT add a <style> block. Use inline styles only where TARGET_HTML already has
+  them or where essential (e.g. background image).
 - Output the COMPLETE revised JavaScript file. No markdown fences, no commentary.
 
 === ISSUES TO FIX ===
@@ -246,7 +275,8 @@ RULES:
 === ORIGINAL INPUTS ===
 - PAGE_URL: {page_url}
 - TARGET_SELECTOR: {target_selector}
-- TARGET_ELEMENT_CLASSES: {target_classes}
+- TARGET_HTML:
+{target_html}
 - EXTRACTED_STYLES:
 {extracted_styles}
 
@@ -339,18 +369,43 @@ def infer_bucket(selector_text, declarations):
     return "banner"
 
 
-def extract_wrapper_classes(raw_html):
-    """Return the outermost element's class list as a space-separated string."""
+NOISE_TAGS = {
+    "script", "noscript", "iframe", "link", "meta",
+    "video", "audio", "source", "track",
+    "button", "picture",
+}
+
+
+def sanitize_html(raw_html):
+    """Strip interactive/media noise from TARGET_HTML while preserving structural DOM."""
     soup = BeautifulSoup(raw_html, "html.parser")
-    top = soup.find(True)
-    if top and top.get("class"):
-        return " ".join(top["class"])
-    return ""
+
+    for tag in list(soup.find_all(NOISE_TAGS)):
+        tag.decompose()
+
+    for comment in list(soup.find_all(string=lambda t: isinstance(t, Comment))):
+        comment.extract()
+
+    for tag in list(soup.find_all(True)):
+        if not tag.parent:
+            continue
+        classes = " ".join(tag.get("class", []))
+        if "modal" in classes.lower() or tag.get("aria-hidden") == "true":
+            tag.decompose()
+            continue
+        for attr in list(tag.attrs):
+            if attr.startswith("data-"):
+                del tag[attr]
+
+    return str(soup).strip()
 
 
 def _usable(val):
-    """Reject CSS variable references and empty values."""
-    return val and not val.strip().startswith("var(")
+    """Reject CSS variable references, currentColor, and empty values."""
+    if not val:
+        return False
+    v = val.strip().lower()
+    return not v.startswith("var(") and v != "currentcolor"
 
 
 def pick_style_values(base, declarations, bucket):
@@ -526,13 +581,13 @@ def generate():
         return jsonify(error="targetSelector is required."), 400
 
     try:
-        target_classes = extract_wrapper_classes(target_html)
+        clean_html = sanitize_html(target_html)
     except Exception:
-        target_classes = ""
+        clean_html = target_html
 
     prompt = LLM_PROMPT.format(
         page_url=page_url,
-        target_classes=target_classes,
+        target_html=clean_html,
         target_selector=target_selector,
         extracted_styles=json.dumps(extracted_styles, indent=2),
     )
@@ -597,16 +652,16 @@ def regenerate():
         user_note_section = f"=== ADDITIONAL USER FEEDBACK ===\n{feedback_note}"
 
     try:
-        target_classes = extract_wrapper_classes(target_html)
+        clean_html = sanitize_html(target_html)
     except Exception:
-        target_classes = ""
+        clean_html = target_html
 
     prompt = CORRECTION_PROMPT.format(
         issue_list="\n".join(issue_lines),
         user_note=user_note_section,
         page_url=page_url,
         target_selector=target_selector,
-        target_classes=target_classes,
+        target_html=clean_html,
         extracted_styles=json.dumps(extracted_styles, indent=2),
         previous_output=previous_output,
     )
