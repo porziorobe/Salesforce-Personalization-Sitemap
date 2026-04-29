@@ -49,6 +49,116 @@ DEFAULT_STYLES = {
     },
 }
 
+SIMPLE_RECS_TRANSFORMER_JS = """\
+    {
+        name: "SimpleRecs",
+        transformerType: "Handlebars",
+        lastModifiedDate: new Date().getTime() - (1000 * 60 * 60 * 36),
+        substitutionDefinitions: {
+            recs: { defaultValue: '[data]' },
+            image: { defaultValue: '[ImageUrl__c]' },
+            name: { defaultValue: '[ssot__Name__c]' },
+            linkUrl: { defaultValue: '[LinkURL__c]' }
+        },
+        transformerTypeDetails: {
+            html: `
+            <style>
+                .sfdcep-recs-carousel {
+                    width: 100%;
+                    max-width: 1440px;
+                    margin: 0 auto;
+                    display: flex;
+                    flex-flow: row wrap;
+                    justify-content: space-evenly;
+                    padding: 20px 0;
+                    gap: 20px;
+                }
+
+                .sfdcep-recs-card-wrapper {
+                    width: 22%;
+                    min-width: 240px;
+                    flex: 1 1 240px;
+                }
+
+                .sfdcep-recs-card {
+                    height: 100%;
+                    background: #fff;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+                    display: flex;
+                    flex-direction: column;
+                }
+
+                .sfdcep-recs-card .cmp-image__image {
+                    width: 100%;
+                    height: 200px;
+                    object-fit: cover;
+                    display: block;
+                }
+
+                .sfdcep-recs-card__content {
+                    padding: 20px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                    flex: 1;
+                }
+
+                .sfdcep-recs-card__title {
+                    font-size: 18px;
+                    font-weight: 600;
+                    color: #1d1d1d;
+                    margin: 0;
+                    font-family: Arial, Helvetica, sans-serif;
+                }
+
+                .sfdcep-recs-card__cta {
+                    color: #097fb3;
+                    font-size: 14px;
+                    text-decoration: none;
+                    font-weight: 500;
+                    font-family: Arial, Helvetica, sans-serif;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                    margin-top: auto;
+                }
+
+                .sfdcep-recs-card__cta:hover {
+                    text-decoration: underline;
+                }
+
+                .sfdcep-recs-card__cta::after {
+                    content: '\\u203a';
+                    font-size: 18px;
+                    line-height: 1;
+                }
+            </style>
+
+            <div class="sfdcep-recs-carousel">
+                {{#each (subVar 'recs')}}
+                <div class="sfdcep-recs-card-wrapper">
+                    <div class="sfdcep-recs-card">
+                        <div class="cmp-teaser__image">
+                            {{#if (subVar 'image')}}
+                                <img src="{{subVar 'image'}}" class="cmp-image__image" alt="{{subVar 'name'}}">
+                            {{else}}
+                                <img src="https://placehold.co/750x422/e8f4fb/097fb3?text=No+Image" class="cmp-image__image" alt="">
+                            {{/if}}
+                        </div>
+                        <div class="sfdcep-recs-card__content">
+                            <h3 class="sfdcep-recs-card__title">{{subVar 'name'}}</h3>
+                            <a class="sfdcep-recs-card__cta" href="{{subVar 'linkUrl'}}" target="_self">Learn More</a>
+                        </div>
+                    </div>
+                </div>
+                {{/each}}
+            </div>
+                `
+        }
+    }"""
+
 LLM_PROMPT = """You are an expert Salesforce Personalization (Interaction Studio) developer.
 Your job is to generate a ready-to-use sitemap JavaScript file.
 
@@ -96,7 +206,9 @@ SalesforceInteractions.Personalization.Config.initialize({{
         transformerTypeDetails: {{
             html: `GENERATED_TRANSFORMER_HTML`
         }}
-    }}]
+    }},
+    __SIMPLE_RECS_PLACEHOLDER__
+    ]
 }});
 
 /* ===================== SITEMAP ===================== */
@@ -142,7 +254,10 @@ SalesforceInteractions.init().then(() => {{
                 }}
                 return event;
             }},
-            contentZones: [{{ name: "Homepage | Hero", selector: "TARGET_SELECTOR" }}]
+            contentZones: [
+                {{ name: "Homepage | Hero", selector: "TARGET_SELECTOR" }}
+                // {{ name: "Homepage | Recs", selector: "RECS_SELECTOR" }}
+            ]
         }}],
         pageTypeDefault: {{ name: "Default" }}
     }};
@@ -158,6 +273,8 @@ The ONLY things you change in the boilerplate above are:
 - Replace GENERATED_TRANSFORMER_HTML with the HTML you generate in Part 2
 
 Do NOT add, remove, reorder, or modify any other line in the boilerplate.
+Do NOT modify the SimpleRecs transformer object — output it exactly as shown.
+Do NOT uncomment the recs content zone line.
 
 === PART 2 — GENERATE THE TRANSFORMER HTML ===
 
@@ -247,9 +364,11 @@ CORRECTION_PROMPT = """You are revising a Salesforce Personalization sitemap tha
 The user has flagged specific issues with the transformer HTML inside transformerTypeDetails.
 
 RULES:
-- Fix ONLY the transformer HTML (the content inside transformerTypeDetails.html backticks).
+- Fix ONLY the hero transformer HTML (the first entry in additionalTransformers,
+  inside its transformerTypeDetails.html backticks).
+- Do NOT modify the SimpleRecs transformer — output it exactly as it appears.
 - Do NOT change any other part of the JavaScript — the boilerplate must remain identical.
-- All five subVar Handlebars variables remain MANDATORY in the transformer HTML.
+- All five subVar Handlebars variables remain MANDATORY in the hero transformer HTML.
 - Preserve the customer's DOM structure and class names from TARGET_HTML.
 - Do NOT add a <style> block. Use inline styles only where TARGET_HTML already has
   them or where essential (e.g. background image).
@@ -578,7 +697,7 @@ def generate():
         target_html=clean_html,
         target_selector=target_selector,
         extracted_styles=json.dumps(extracted_styles, indent=2),
-    )
+    ).replace("__SIMPLE_RECS_PLACEHOLDER__", SIMPLE_RECS_TRANSFORMER_JS.strip())
 
     last_err = None
     result = None
